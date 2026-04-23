@@ -5,6 +5,7 @@ from core.engine import ask_ollama_stream
 from core.router import route_command
 import core.voice as voice
 import core.tts_engine as tts_engine
+from core.state_manager import state_manager
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
 
@@ -20,7 +21,7 @@ def show_banner():
 ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 """)
 
-    print("🟢 ARIA Online | Model: phi3")
+    print("🟢 ARIA Online | Model: phi3 ")
     print("─" * 50)
 
 
@@ -60,6 +61,7 @@ def run_cli():
 
     while True:
         try:
+            state_manager.set_state("idle")
             user_input = session.prompt("\nYou > (Ctrl+Q or F2 for Voice) ")
             
             # Stop any ongoing speech since the user just provided new input
@@ -99,13 +101,18 @@ def run_cli():
                 print("\rARIA > ", end="", flush=True)
 
             # 🔥 call AI
-            ask_ollama_stream(user_input, on_first_token=stop_loader, on_sentence=tts_engine.speak_chunk)
+            ask_ollama_stream(user_input, on_first_token=stop_loader, on_sentence=lambda text: tts_engine.enqueue_text(text, print_text=True))
+
+            # Wait until TTS finishes playing before showing the prompt again
+            while tts_engine.is_speaking():
+                time.sleep(0.1)
 
             print("\n" + "─" * 50)
 
         except KeyboardInterrupt:
-            print("\nARIA stopped")
-            break
+            tts_engine.stop_speaking()
+            print("\n[Interrupted] You can type your next message.")
+            continue
         except EOFError:
             print("\nARIA stopped")
             break

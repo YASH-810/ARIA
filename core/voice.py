@@ -6,6 +6,7 @@ import wave
 import tempfile
 import pyaudio
 import numpy as np
+from core.state_manager import state_manager
 
 TTS_QUEUE = queue.Queue()
 TTS_THREAD = None
@@ -71,6 +72,7 @@ def listen_offline():
     p = pyaudio.PyAudio()
     stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
     
+    state_manager.set_state("listening")
     print("\nARIA > Listening... (speak now)")
     
     frames = []
@@ -114,6 +116,7 @@ def listen_offline():
     if not started_speaking:
         return ""
         
+    state_manager.set_state("thinking")
     print("\rARIA > Transcribing...  ", end="", flush=True)
     
     # Save to temp WAV file
