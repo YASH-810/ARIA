@@ -46,7 +46,7 @@ def run_cli():
     
     # Now clear the terminal and show the real ARIA UI
     show_banner()
-    greet_msg = "Hello Yash, ARIA is online and ready."
+    greet_msg = "Good to see you, Yash. ARIA is online and ready to assist."
     print(f"ARIA > {greet_msg}")
     tts_engine.speak_chunk(greet_msg)
 
@@ -62,7 +62,7 @@ def run_cli():
     while True:
         try:
             state_manager.set_state("idle")
-            user_input = session.prompt("\nYou > (Ctrl+Q or F2 for Voice) ")
+            user_input = session.prompt("\nYou > ")
             
             # Stop any ongoing speech since the user just provided new input
             if user_input.strip():

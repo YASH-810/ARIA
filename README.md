@@ -2,6 +2,8 @@
 
 ## 🧠 Overview
 
+![ARIA Terminal Interface](assets/aria_terminal.gif)
+
 ARIA is an advanced, fully **local AI assistant** designed to run **offline** with minimal setup. It focuses on ultra-low latency, multi-modal interactions (voice & text), and deep system integrations.
 
 It supports:
