@@ -3,6 +3,10 @@ import threading
 import time
 from core.engine import ask_ollama_stream
 from core.router import route_command
+import core.voice as voice
+import core.tts_engine as tts_engine
+from prompt_toolkit import PromptSession
+from prompt_toolkit.key_binding import KeyBindings
 
 def show_banner():
     os.system("cls" if os.name == "nt" else "clear")
@@ -16,7 +20,7 @@ def show_banner():
 ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 """)
 
-    print("🤖 ARIA Online | Model: phi3")
+    print("🟢 ARIA Online | Model: phi3")
     print("─" * 50)
 
 
@@ -30,11 +34,43 @@ def loading_animation(stop_event):
 
 
 def run_cli():
+    # start.bat already prints 'Starting ARIA...'
+    tts_engine.start_tts_engine()
+    
+    # Pre-load the Whisper model silently
+    print("Loading offline models into memory...")
+    import os
+    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+    voice.get_whisper_model()
+    
+    # Now clear the terminal and show the real ARIA UI
     show_banner()
+    greet_msg = "Hello Yash, ARIA is online and ready."
+    print(f"ARIA > {greet_msg}")
+    tts_engine.speak_chunk(greet_msg)
+
+    bindings = KeyBindings()
+    
+    @bindings.add('c-q')
+    @bindings.add('f2')
+    def _(event):
+        event.app.exit(result='/voice')
+
+    session = PromptSession(key_bindings=bindings)
 
     while True:
         try:
-            user_input = input("\nYou > ")
+            user_input = session.prompt("\nYou > (Ctrl+Q or F2 for Voice) ")
+            
+            # Stop any ongoing speech since the user just provided new input
+            if user_input.strip():
+                tts_engine.stop_speaking()
+
+            if user_input.strip().lower() in ["/v", "/voice"]:
+                user_input = voice.listen_offline()
+                if not user_input:
+                    continue
+                print(f"You (Voice) > {user_input}")
 
             if user_input.lower() in ["exit", "quit"]:
                 print("\nARIA shutting down...")
@@ -63,10 +99,13 @@ def run_cli():
                 print("\rARIA > ", end="", flush=True)
 
             # 🔥 call AI
-            ask_ollama_stream(user_input, on_first_token=stop_loader)
+            ask_ollama_stream(user_input, on_first_token=stop_loader, on_sentence=tts_engine.speak_chunk)
 
             print("\n" + "─" * 50)
 
         except KeyboardInterrupt:
+            print("\nARIA stopped")
+            break
+        except EOFError:
             print("\nARIA stopped")
             break

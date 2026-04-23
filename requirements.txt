@@ -1,0 +1,7 @@
+requests
+pygame
+pyttsx3
+pyaudio
+numpy
+faster-whisper
+prompt_toolkit
