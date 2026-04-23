@@ -126,8 +126,8 @@ def _tts_generator():
             temp_path = os.path.join(tempfile.gettempdir(), f"aria_tts_{uuid.uuid4().hex}.wav")
             
             try:
-                # Call piper via subprocess
-                cmd = f'"{PIPER_EXE}" --model "{MODEL_ONNX}" --output_file "{temp_path}"'
+                # Call piper via subprocess with fine-tuned parameters for a calm and slow voice
+                cmd = f'"{PIPER_EXE}" --model "{MODEL_ONNX}" --length_scale 1.2 --noise_scale 0.5 --sentence_silence 0.3 --output_file "{temp_path}"'
                 # Pipe text to stdin
                 process = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 process.communicate(input=text.encode('utf-8'))

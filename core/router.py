@@ -2,6 +2,7 @@ import os
 import subprocess
 from rapidfuzz import process
 from commands.actions import run_command, create_file, delete_file, launch_app
+from core.tts_engine import speak_chunk
 
 # Known apps for fallback standard commands
 KNOWN_APPS = [
@@ -55,24 +56,28 @@ def open_anything(target):
     if target in COMMON_PATHS:
         os.startfile(COMMON_PATHS[target])
         print(f"ARIA > Opening {target}...")
+        speak_chunk(f"Opening {target}")
         return
 
     # 2. Hard paths
     if os.path.exists(target):
         launch_app(target)
         print(f"ARIA > Opening {target}...")
+        speak_chunk(f"Opening {target}")
         return
 
     # 3. Installed Apps (Exact Match)
     if target in INSTALLED_APPS:
         launch_app(INSTALLED_APPS[target])
         print(f"ARIA > Opening {target}...")
+        speak_chunk(f"Opening {target}")
         return
 
     # 4. Known CLI apps (Exact Match)
     if target in KNOWN_APPS:
         launch_app(target)
         print(f"ARIA > Opening {target}...")
+        speak_chunk(f"Opening {target}")
         return
 
     # 5. Installed Apps (Fuzzy Match)
@@ -80,6 +85,7 @@ def open_anything(target):
     if match:
         launch_app(INSTALLED_APPS[match])
         print(f"ARIA > Opening {match}...")
+        speak_chunk(f"Opening {match}")
         return
 
     # 6. Known CLI Apps (Fuzzy Match)
@@ -87,17 +93,20 @@ def open_anything(target):
     if match:
         launch_app(match)
         print(f"ARIA > Opening {match}...")
+        speak_chunk(f"Opening {match}")
         return
 
     # 7. Blind fallback (cmd /c start)
     try:
         subprocess.Popen(f"start {target}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(f"ARIA > Attempting to open {target}...")
+        speak_chunk(f"Attempting to open {target}")
         return
     except:
         pass
 
     print(f"ARIA > Could not find or open '{target}'.")
+    speak_chunk(f"Could not find or open {target}")
 
 
 # 🔥 Natural language parsing
