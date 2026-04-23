@@ -2,132 +2,45 @@
 
 ## 🧠 Overview
 
-ARIA is a **local AI assistant** designed to run **offline** with minimal setup.
+ARIA is an advanced, fully **local AI assistant** designed to run **offline** with minimal setup. It focuses on ultra-low latency, multi-modal interactions (voice & text), and deep system integrations.
 
 It supports:
-
 * 💻 PC mode (full features)
 * 🔑 USB mode (portable AI system)
 
 ARIA is built to be:
-
-* Lightweight
-* Modular
-* Easy to run using scripts (no manual installs required)
-
----
-
-# 🚀 Installation & Setup
-
-## ⚡ Option 1 — Quick Start (Recommended)
-
-Run ARIA using setup script:
-
-### Windows:
-
-```bash
-run.bat
-```
-
-This script will:
-
-* Check if Ollama is installed
-* Install Ollama (if missing)
-* Start Ollama server
-* Load required model
-* Launch ARIA
+* Lightweight and incredibly fast.
+* Fully private (Zero cloud telemetry).
+* Modular and easily extendable.
 
 ---
 
-## 🧠 How Installation Works
+# 🚀 Features
 
-ARIA handles setup automatically using CLI.
-
-### Internally it runs:
-
-```bash
-ollama serve
-ollama pull phi3
-```
-
-👉 No need to manually download from website
+* 💬 **Local AI Chat:** Powered by Ollama streaming the `phi3` model.
+* 🎙️ **Real-time Voice Input:** Uses `faster-whisper` and dynamic RMS silence detection for seamless offline Speech-to-Text.
+* 🔊 **Synchronized Voice Output:** Uses `Piper TTS` to generate ultra-realistic voice models, perfectly synchronized word-by-word with the terminal output.
+* ⚙️ **Command Automation:** Executes shell commands, creates files, and deletes files locally.
+* 🧠 **Intelligent App Routing:** Uses the `rapidfuzz` algorithm (Levenshtein distance) to intelligently fuzzy-match and launch local system apps (e.g., "open spotify", "start calculatr").
+* 🛡️ **Thread-Safe State Manager:** Centralized architecture preventing overlaps between listening, thinking, and speaking.
 
 ---
 
-## 🔑 Option 2 — USB Portable Mode
-
-ARIA can run directly from a pendrive.
-
-### USB Structure:
-
-```plaintext
-ARIA_USB/
- ├── models/
- ├── memory/
- ├── config/
- └── run.bat
-```
-
----
-
-### How it works:
-
-1. Plug USB
-2. Run:
-
-```bash
-run.bat
-```
-
-3. ARIA will:
-
-* Detect USB models
-* Start Ollama engine (PC)
-* Use models from USB
-
----
-
-## ⚙️ Model Handling
-
-### Option A — Auto Download
-
-If model not found:
-
-```bash
-ollama pull phi3
-```
-
----
-
-### Option B — USB Models
-
-* Place `.gguf` or Ollama models in:
-
-```plaintext
-USB/models/
-```
-
-ARIA will:
-
-* Detect models
-* Load automatically
-
----
 
 # 🧠 System Architecture
 
 ```plaintext
-User
- ↓
-CLI (ARIA)
- ↓
-Router
- ↓
-Engine
- ↓
-Ollama
- ↓
-Model (USB or PC)
+User Input (Text / F2 for Voice)
+          ↓
+CLI (Prompt Toolkit)
+          ↓
+State Manager (Idle / Listening / Thinking / Speaking)
+          ↓
+Router (Fuzzy Matcher)  ←→  System Commands (actions.py)
+          ↓
+Engine (ask_ollama_stream)
+          ↓
+Piper TTS + Terminal Sync
 ```
 
 ---
@@ -137,12 +50,18 @@ Model (USB or PC)
 ```plaintext
 ARIA/
 ├── core/
+│   ├── engine.py           # LLM processing
+│   ├── router.py           # Natural language & app routing
+│   ├── state_manager.py    # Concurrency control
+│   ├── tts_engine.py       # Piper TTS & pygame audio player
+│   └── voice.py            # Faster-Whisper & pyaudio STT
 ├── commands/
-├── context/
+│   └── actions.py          # OS level execution
 ├── ui/
-├── config/
-├── main.py
-└── run.bat
+│   └── cli.py              # prompt_toolkit interface
+├── main.py                 # Application entry point
+├── requirements.txt        # Python dependencies
+└── run.bat                 # Bootstrapper
 ```
 
 ---
@@ -159,74 +78,23 @@ ARIA/
 
 ---
 
-# 🧩 Modes
-
-## 🟢 Lite Mode
-
-* CLI only
-* Small models
-* Works on low-end devices
-
-## 🔵 Mid Mode
-
-* Better models
-* More features
-
-## 🔴 Pro Mode
-
-* Full UI
-* Advanced capabilities
-
----
-
-# ⚡ Features
-
-* 💬 AI chat (offline)
-* 💻 Coding assistant
-* ⚙️ Command automation
-* 📂 File reading (limited context)
-* 🔊 Text-to-speech
-* 🔑 USB-based model system
-
----
-
 # ⚠️ Important Notes
 
 * ARIA uses local models → performance depends on hardware
 * Small models recommended for low-end systems
-* Avoid running heavy models on limited RAM
-
----
-
-# 🤖 Agent Instructions
-
-When using ARIA:
-
-* Do NOT scan entire project
-* Use minimal file context (1–3 files)
-* Confirm before modifying files
-* Prefer fast and lightweight execution
-* Avoid heavy operations unless necessary
+* Ensure all dependencies in `requirements.txt` are installed.
 
 ---
 
 # 🔮 Future Features
 
-* Screen interaction (OCR)
-* Voice commands + wake word
-* Advanced automation
+* Screen interaction (OCR & Computer Vision)
+* Always-on wake word ("Hey ARIA")
 * React UI dashboard
 
 ---
 
 # 🧠 Summary
 
-ARIA is:
-
-* A **portable AI assistant**
-* A **developer tool**
-* A **local-first system**
-
+ARIA is a **portable AI assistant**, a **developer tool**, and a **local-first system**.
 Run anywhere. No cloud required.
-
----
