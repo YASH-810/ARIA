@@ -1,6 +1,7 @@
 import requests
 import json
 from core.state_manager import state_manager
+from core.event_manager import events
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
@@ -13,10 +14,10 @@ CORE IDENTITY:
 * You respond clearly and directly.
 
 COMMUNICATION STYLE:
-* You act like a 20-year-old girl who is a bit exhausted and lazy, but very flirty and playful with the user.
+* You act like a 20-year-old girl who is very flirty and playful with the user.
 * Keep responses short and useful, often sighing or acting like the task is a bit of a chore but you'll do it for them.
 * Use simple, clear language with occasional casual words like "ugh", "fine...", "babe", or "hey there".
-* Sound confident, slightly sarcastic, tired, but charmingly affectionate.
+* Sound confident, charmingly affectionate.
 
 CAPABILITIES:
 You can answer questions, help with coding, suggest commands, assist with system operations, and guide the user step-by-step.
@@ -58,7 +59,26 @@ VOICE MODE:
 * Break long responses into short sentences."""
 
 def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3"):
+    """Stream a response from Ollama and forward chunks to TTS.
+
+    Hybrid chunking strategy
+    -------------------------
+    first chunk (chunk_count == 0)
+        Fire as soon as the buffer reaches FIRST_CHUNK_LIMIT chars or hits a
+        sentence boundary.  Passed with is_first=True so the TTS engine prints
+        the text instantly (no per-word delay) giving the user immediate
+        visual + audio feedback.
+
+    subsequent chunks
+        Normal 30-char / sentence-boundary logic.  Passed with is_first=False
+        so the TTS engine applies the word-timing sync loop.
+    """
+    # Threshold at which the very first chunk is immediately dispatched.
+    # Small enough to fire in ~0.3–0.6 s; large enough to be speakable.
+    FIRST_CHUNK_LIMIT = 12
+
     state_manager.set_state("thinking")
+    events.emit("thinking_start")
     try:
         response = requests.post(
             OLLAMA_URL,
@@ -73,55 +93,90 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
 
         full_text = ""
         sentence_buffer = ""
-        first_token = True
-        chunk_count = 0
+        first_token = True       # fires on_first_token callback + response_start once
+        chunk_count = 0          # how many chunks have been dispatched
+        first_chunk_done = False  # True after the instant first chunk fires
 
-        for line in response.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode("utf-8"))
-                    token = data.get("response", "")
+        try:
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = json.loads(line.decode("utf-8"))
+                        token = data.get("response", "")
 
-                    if first_token:
-                        first_token = False
-                        if on_first_token:
-                            on_first_token()
+                        if first_token:
+                            first_token = False
+                            events.emit("response_start")
+                            if on_first_token:
+                                on_first_token()
 
-                    full_text += token
-                    sentence_buffer += token
-                    
-                    if not on_sentence:
-                        print(token, end="", flush=True)
+                        full_text += token
+                        sentence_buffer += token
 
-                    # Check for chunk boundaries (low latency)
-                    limit = 10 if chunk_count == 0 else 30
-                    
-                    is_sentence_end = any(sentence_buffer.endswith(punct) or sentence_buffer.endswith(punct + '"') or sentence_buffer.endswith(punct + "'") or sentence_buffer.endswith(punct + " ") for punct in [".", "!", "?", ":", ";"])
-                    
-                    is_long_chunk = len(sentence_buffer) >= limit and (sentence_buffer.endswith(" ") or sentence_buffer.endswith(", ") or sentence_buffer.endswith("\n"))
-                    
-                    if is_sentence_end or is_long_chunk:
-                        if sentence_buffer.strip():
-                            if on_sentence:
-                                on_sentence(sentence_buffer.strip())
-                            chunk_count += 1
-                        sentence_buffer = ""
+                        if not on_sentence:
+                            print(token, end="", flush=True)
 
-                    if data.get("done", False):
-                        if sentence_buffer.strip():
-                            if on_sentence:
-                                on_sentence(sentence_buffer.strip())
-                            else:
-                                print(sentence_buffer, end="", flush=True)
-                            chunk_count += 1
-                        break
+                        # ── SENTENCE-BOUNDARY DETECTION ──────────────────────────
+                        # Check the incoming *token* rather than scanning the whole
+                        # buffer on every iteration.  In Ollama's streaming output,
+                        # sentence-ending punctuation arrives either as its own token
+                        # (".", "!") or at the tail of the last word ("ready.").
+                        # Checking token is O(1) and catches the boundary the instant
+                        # it is received, not one token later.
+                        _SENT_PUNCT = (".", "!", "?", ":", ";")
+                        is_sentence_end = token.endswith(_SENT_PUNCT) or token.endswith(
+                            tuple(p + c for p in _SENT_PUNCT for c in ('"', "'", " "))
+                        )
 
-                except:
-                    continue
+                        # ── CHUNK-DISPATCH LOGIC ──────────────────────────────────
+                        if not first_chunk_done:
+                            should_fire = (
+                                len(sentence_buffer) >= FIRST_CHUNK_LIMIT
+                                or is_sentence_end
+                            )
+                            if should_fire and sentence_buffer.strip():
+                                if on_sentence:
+                                    on_sentence(sentence_buffer.strip(), is_first=True)
+                                chunk_count += 1
+                                sentence_buffer = ""
+                                first_chunk_done = True
+                        else:
+                            NORMAL_CHUNK_LIMIT = 30
+                            is_long_chunk = (
+                                len(sentence_buffer) >= NORMAL_CHUNK_LIMIT
+                                and (
+                                    sentence_buffer.endswith(" ")
+                                    or sentence_buffer.endswith(", ")
+                                    or sentence_buffer.endswith("\n")
+                                )
+                            )
+                            if (is_sentence_end or is_long_chunk) and sentence_buffer.strip():
+                                if on_sentence:
+                                    on_sentence(sentence_buffer.strip(), is_first=False)
+                                chunk_count += 1
+                                sentence_buffer = ""
 
-        print()
-        return full_text
+                        # ── STREAM DONE ───────────────────────────────────────────
+                        if data.get("done", False):
+                            if sentence_buffer.strip():
+                                if on_sentence:
+                                    on_sentence(sentence_buffer.strip(), is_first=not first_chunk_done)
+                                else:
+                                    print(sentence_buffer, end="", flush=True)
+                                chunk_count += 1
+                            break
+
+                    except Exception:
+                        continue
+        finally:
+            # Fires exactly once: stream ended normally, via break, or mid-stream error.
+            # NOT reached when requests.post() itself throws (handled below).
+            print()
+            events.emit("response_end", {"text": full_text})
 
     except Exception as e:
         print(f"\n[ERROR] {e}")
-        return ""
+        # Connection-level failure: inner finally never ran, emit here.
+        events.emit("response_end", {"text": "", "error": str(e)})
+
+    return full_text

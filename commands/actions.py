@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import threading
 from core.state_manager import state_manager
+from core.event_manager import events
 
 def _monitor_stream(stream, prefix):
     """
@@ -21,6 +22,7 @@ def _monitor_stream(stream, prefix):
 def run_command(cmd):
     state_manager.set_state("executing")
     try:
+        temp_bat = None
         # If it's a multiline command, execute it via a temp batch file
         if "\n" in cmd:
             with tempfile.NamedTemporaryFile("w", suffix=".bat", delete=False) as f:
@@ -37,9 +39,19 @@ def run_command(cmd):
         threading.Thread(target=_monitor_stream, args=(proc.stdout, "ARIA > "), daemon=True).start()
         threading.Thread(target=_monitor_stream, args=(proc.stderr, "ARIA > Error: "), daemon=True).start()
 
+        if temp_bat:
+            def _cleanup():
+                proc.wait()
+                try:
+                    os.remove(temp_bat)
+                except OSError:
+                    pass
+            threading.Thread(target=_cleanup, daemon=True).start()
+
     except Exception as e:
         print(f"ARIA > Error running command: {e}")
     finally:
+        events.emit("command_executed", {"type": "run_command", "target": cmd})
         state_manager.set_state("idle")
 
 def launch_app(target_path):
@@ -55,6 +67,7 @@ def launch_app(target_path):
     except Exception as e:
         print(f"ARIA > Error: {e}")
     finally:
+        events.emit("command_executed", {"type": "launch_app", "target": target_path})
         state_manager.set_state("idle")
 
 def create_file(filename):
@@ -71,6 +84,7 @@ def create_file(filename):
     except Exception as e:
         print(f"Error creating file: {e}")
     finally:
+        events.emit("command_executed", {"type": "create_file", "target": filename})
         state_manager.set_state("idle")
 
 def delete_file(filename):
@@ -84,4 +98,5 @@ def delete_file(filename):
         else:
             print("Cancelled.")
     finally:
+        events.emit("command_executed", {"type": "delete_file", "target": filename})
         state_manager.set_state("idle")

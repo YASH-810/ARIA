@@ -109,16 +109,20 @@ def open_anything(target):
     speak_chunk(f"Could not find or open {target}")
 
 
+def _extract_filename(text):
+    for word in text.split():
+        if "." in word:
+            clean_word = word.rstrip(".,!?\"';:")
+            if "." in clean_word:
+                return clean_word
+    return None
+
 # 🔥 Natural language parsing
 def parse_natural(text):
     text = text.lower().strip()
 
     if "create" in text or "make" in text:
-        target_file = None
-        for word in text.split():
-            if "." in word:
-                target_file = word
-                break
+        target_file = _extract_filename(text)
         
         if target_file:
             target_path = target_file
@@ -131,9 +135,9 @@ def parse_natural(text):
             return "create_file", target_path
 
     if "delete" in text or "remove" in text:
-        for word in text.split():
-            if "." in word:
-                return "delete_file", word
+        target_file = _extract_filename(text)
+        if target_file:
+            return "delete_file", target_file
 
     if text.startswith("run ") or text.startswith("start "):
         target = text[4:] if text.startswith("run ") else text[6:]

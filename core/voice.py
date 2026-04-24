@@ -1,50 +1,11 @@
 import os
 import queue
 import threading
-import pyttsx3
 import wave
 import tempfile
 import pyaudio
 import numpy as np
 from core.state_manager import state_manager
-
-TTS_QUEUE = queue.Queue()
-TTS_THREAD = None
-TTS_ENGINE = None
-
-def init_tts():
-    global TTS_ENGINE, TTS_THREAD
-    
-    # Initialize pyttsx3
-    TTS_ENGINE = pyttsx3.init()
-    
-    # Find and set female voice
-    voices = TTS_ENGINE.getProperty('voices')
-    for voice in voices:
-        # Zira is the default female voice on Windows
-        if "Zira" in voice.name or "female" in voice.name.lower():
-            TTS_ENGINE.setProperty('voice', voice.id)
-            break
-            
-    # Start TTS worker thread
-    TTS_THREAD = threading.Thread(target=_tts_worker, daemon=True)
-    TTS_THREAD.start()
-
-def _tts_worker():
-    while True:
-        text = TTS_QUEUE.get()
-        if text is None:
-            break
-        try:
-            TTS_ENGINE.say(text)
-            TTS_ENGINE.runAndWait()
-        except Exception as e:
-            print(f"[TTS Error] {e}")
-        TTS_QUEUE.task_done()
-
-def speak(text):
-    if text.strip():
-        TTS_QUEUE.put(text)
 
 
 # --- FASTER-WHISPER STT LOGIC ---

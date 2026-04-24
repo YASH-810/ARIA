@@ -19,7 +19,7 @@ class StateManager:
         
         # Define allowed transitions based on requirements + practical edge cases
         self._valid_transitions = {
-            "idle": {"listening", "thinking", "executing"}, # thinking is for text input
+            "idle": {"listening", "thinking", "executing", "speaking"}, # speaking for greetings
             "listening": {"thinking", "idle"}, 
             "thinking": {"speaking", "executing", "idle"},
             "speaking": {"idle", "listening"},
@@ -32,6 +32,8 @@ class StateManager:
                 return False
                 
             if self._current_state != new_state:
+                if new_state not in self._valid_transitions.get(self._current_state, set()):
+                    return False
                 self._current_state = new_state
                 
             return True

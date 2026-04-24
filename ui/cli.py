@@ -1,24 +1,24 @@
 import os
 import threading
 import time
-from core.engine import ask_ollama_stream
-from core.router import route_command
 import core.voice as voice
 import core.tts_engine as tts_engine
 from core.state_manager import state_manager
+from core.pipeline import VoicePipeline
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
+
 
 def show_banner():
     os.system("cls" if os.name == "nt" else "clear")
 
     print(r"""
- █████╗ ██████╗ ██╗ █████╗ 
-██╔══██╗██╔══██╗██║██╔══██╗
-███████║██████╔╝██║███████║
-██╔══██║██╔══██╗██║██╔══██║
-██║  ██║██║  ██║██║██║  ██║
-╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
+                 █████╗ ██████╗ ██╗ █████╗ 
+                ██╔══██╗██╔══██╗██║██╔══██╗
+                ███████║██████╔╝██║███████║
+                ██╔══██║██╔══██╗██║██╔══██║
+                ██║  ██║██║  ██║██║██║  ██║
+                ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 """)
 
     print("🟢 ARIA Online | Model: phi3 ")
@@ -27,31 +27,49 @@ def show_banner():
 
 def loading_animation(stop_event):
     while not stop_event.is_set():
-        for dots in ["Processing   ", "Processing.  ", "Processing.. ", "Processing..."]:
+        for dots in ["Thinking   ", "Thinking.  ", "Thinking.. ", "Thinking..."]:
             print(f"\rARIA > {dots}", end="", flush=True)
-            time.sleep(0.3)
-            if stop_event.is_set():
+            if stop_event.wait(0.3):
                 break
 
 
 def run_cli():
-    # start.bat already prints 'Starting ARIA...'
     tts_engine.start_tts_engine()
-    
-    # Pre-load the Whisper model silently
+
+    # Pre-load Whisper silently so voice mode starts instantly
     print("Loading offline models into memory...")
-    import os
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
     voice.get_whisper_model()
-    
-    # Now clear the terminal and show the real ARIA UI
+
+    # Build the loading-spinner callback the pipeline will call on first token
+    # We keep the spinner here in the CLI because it is a pure UI concern.
+    _stop_loader_event = threading.Event()
+    _loader_thread: threading.Thread | None = None
+
+    def _start_loader():
+        nonlocal _loader_thread
+        _stop_loader_event.clear()
+        _loader_thread = threading.Thread(
+            target=loading_animation, args=(_stop_loader_event,), daemon=True
+        )
+        _loader_thread.start()
+
+    def _stop_loader():
+        _stop_loader_event.set()
+        if _loader_thread:
+            _loader_thread.join()
+        print("\rARIA > ", end="", flush=True)
+
+    # Single pipeline instance — Whisper model is already warm above
+    pipeline = VoicePipeline(on_first_token=_stop_loader)
+
     show_banner()
     greet_msg = "Good to see you, Yash. ARIA is online and ready to assist."
     print(f"ARIA > {greet_msg}")
     tts_engine.speak_chunk(greet_msg)
 
     bindings = KeyBindings()
-    
+
     @bindings.add('c-q')
     @bindings.add('f2')
     def _(event):
@@ -63,54 +81,31 @@ def run_cli():
         try:
             state_manager.set_state("idle")
             user_input = session.prompt("\nYou > ")
-            
-            # Stop any ongoing speech since the user just provided new input
-            if user_input.strip():
-                tts_engine.stop_speaking()
 
-            if user_input.strip().lower() in ["/v", "/voice"]:
-                user_input = voice.listen_offline()
-                if not user_input:
-                    continue
-                print(f"You (Voice) > {user_input}")
+            if not user_input.strip():
+                continue
 
-            if user_input.lower() in ["exit", "quit"]:
+            # ── Voice mode triggered by F2 / Ctrl+Q / /v / /voice ────────────
+            if user_input.strip().lower() in ("/v", "/voice"):
+                pipeline.run_once()          # no text → STT path
+                print("\n" + "─" * 50)
+                continue
+
+            # ── Exit ──────────────────────────────────────────────────────────
+            if user_input.lower() in ("exit", "quit"):
                 print("\nARIA shutting down...")
                 break
 
-            # 🔥 FIRST: check if it's a command
-            is_command = route_command(user_input)
-
-            if is_command:
-                print("\n" + "─" * 50)
-                continue  # skip AI part
-
-            # 🔥 Only for AI → start loader
-            stop_event = threading.Event()
-
-            loader_thread = threading.Thread(
-                target=loading_animation,
-                args=(stop_event,)
-            )
-            loader_thread.start()
-
-            # stop loader when first token arrives
-            def stop_loader():
-                stop_event.set()
-                loader_thread.join()
-                print("\rARIA > ", end="", flush=True)
-
-            # 🔥 call AI
-            ask_ollama_stream(user_input, on_first_token=stop_loader, on_sentence=lambda text: tts_engine.enqueue_text(text, print_text=True))
-
-            # Wait until TTS finishes playing before showing the prompt again
-            while tts_engine.is_speaking():
-                time.sleep(0.1)
-
+            # ── All other input: route through pipeline ───────────────────────
+            # Start the spinner before handing off; the pipeline's on_first_token
+            # callback (_stop_loader) will dismiss it when the LLM responds.
+            _start_loader()
+            pipeline.run_once(text=user_input)
             print("\n" + "─" * 50)
 
         except KeyboardInterrupt:
             tts_engine.stop_speaking()
+            _stop_loader_event.set()        # kill spinner if running
             print("\n[Interrupted] You can type your next message.")
             continue
         except EOFError:
