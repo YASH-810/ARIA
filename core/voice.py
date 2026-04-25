@@ -16,8 +16,8 @@ def get_whisper_model():
     global WHISPER_MODEL
     if WHISPER_MODEL is None:
         from faster_whisper import WhisperModel
-        # Use CPU with int8 to ensure it runs on any system without requiring CUDA
-        WHISPER_MODEL = WhisperModel("base.en", device="cpu", compute_type="int8")
+        # Use CPU with int8. Add cpu_threads=4 to speed up inference on multi-core CPUs
+        WHISPER_MODEL = WhisperModel("base.en", device="cpu", compute_type="int8", cpu_threads=4)
     return WHISPER_MODEL
 
 def listen_offline():
@@ -89,8 +89,9 @@ def listen_offline():
             wf.setframerate(RATE)
             wf.writeframes(b''.join(frames))
             
-        # Transcribe
-        segments, info = model.transcribe(temp_wav, beam_size=5)
+        # Transcribe - beam_size=1 (greedy decoding) is 3x faster than beam_size=5.
+        # Hardcoding language="en" skips the language detection step, saving more time.
+        segments, info = model.transcribe(temp_wav, beam_size=1, language="en", vad_filter=True)
         text = " ".join([segment.text.strip() for segment in segments])
         
         return text.strip()
