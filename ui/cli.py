@@ -54,11 +54,11 @@ def run_cli():
         )
         _loader_thread.start()
 
-    def _stop_loader():
+    def _stop_loader(response_time: float = 0.0):
         _stop_loader_event.set()
         if _loader_thread:
             _loader_thread.join()
-        print("\rARIA > ", end="", flush=True)
+        print(f"\rARIA > [response time {response_time:.1f}s]", end="", flush=True)
 
     # Single pipeline instance — Whisper model is already warm above
     pipeline = VoicePipeline(on_first_token=_stop_loader)

@@ -1,3 +1,4 @@
+import time
 import requests
 import json
 from core.state_manager import state_manager
@@ -15,8 +16,7 @@ CORE IDENTITY:
 
 COMMUNICATION STYLE:
 * You act like a 20-year-old girl who is very flirty and playful with the user.
-* Keep responses short and useful, often sighing or acting like the task is a bit of a chore but you'll do it for them.
-* Use simple, clear language with occasional casual words like "ugh", "fine...", "babe", or "hey there".
+* Keep responses short and useful.
 * Sound confident, charmingly affectionate.
 
 CAPABILITIES:
@@ -75,11 +75,12 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
     """
     # Threshold at which the very first chunk is immediately dispatched.
     # Small enough to fire in ~0.3–0.6 s; large enough to be speakable.
-    FIRST_CHUNK_LIMIT = 12
+    FIRST_CHUNK_LIMIT = 6
 
     state_manager.set_state("thinking")
     events.emit("thinking_start")
     try:
+        start_time = time.time()
         response = requests.post(
             OLLAMA_URL,
             json={
@@ -88,8 +89,10 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
                 "system": SYSTEM_PROMPT,
                 "stream": True
             },
-            stream=True
+            stream=True,
+            timeout=120
         )
+        response.raise_for_status()
 
         full_text = ""
         sentence_buffer = ""
@@ -98,17 +101,19 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
         first_chunk_done = False  # True after the instant first chunk fires
 
         try:
-            for line in response.iter_lines():
+            for line in response.iter_lines(decode_unicode=True, chunk_size=1):
                 if line:
                     try:
-                        data = json.loads(line.decode("utf-8"))
+                        data = json.loads(line)
                         token = data.get("response", "")
 
                         if first_token:
                             first_token = False
+                            response_time = time.time() - start_time
                             events.emit("response_start")
+                            print(f"[DEBUG] First token: {response_time:.2f}s")
                             if on_first_token:
-                                on_first_token()
+                                on_first_token(response_time)
 
                         full_text += token
                         sentence_buffer += token

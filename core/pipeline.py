@@ -203,10 +203,10 @@ class VoicePipeline:
         """
         # Build the on_first_token callback — merge the caller-supplied one
         # (e.g. a loading spinner dismissal) with our event emission.
-        def _first_token_cb():
+        def _first_token_cb(response_time: float = 0.0):
             events.emit("response_start")
             if self._on_first_token:
-                self._on_first_token()
+                self._on_first_token(response_time)
 
         def _on_sentence(chunk: str, is_first: bool = False) -> None:
             tts_engine.enqueue_text(chunk, print_text=True, is_first=is_first)
