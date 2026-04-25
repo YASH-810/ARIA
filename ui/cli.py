@@ -60,8 +60,12 @@ def run_cli():
             _loader_thread.join()
         print(f"\rARIA > [response time {response_time:.1f}s]", end="", flush=True)
 
+    def _on_transcript(text: str):
+        print(f"\nYou > {text}")
+        _start_loader()
+
     # Single pipeline instance — Whisper model is already warm above
-    pipeline = VoicePipeline(on_first_token=_stop_loader)
+    pipeline = VoicePipeline(on_transcript=_on_transcript, on_first_token=_stop_loader)
 
     show_banner()
     greet_msg = "Good to see you, Yash. ARIA is online and ready to assist."

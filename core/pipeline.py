@@ -104,8 +104,10 @@ class VoicePipeline:
         5. Otherwise → stream LLM → TTS
         """
         # ── Step 1: obtain input ──────────────────────────────────────────────
+        is_voice = False
         if not text.strip():
             text = self.listen()
+            is_voice = True
 
         if not text.strip():
             return ""
@@ -115,7 +117,8 @@ class VoicePipeline:
 
         # ── Step 3: announce input ────────────────────────────────────────────
         events.emit("user_input", {"text": text})
-        self._on_transcript(text)
+        if is_voice:
+            self._on_transcript(text)
 
         # ── Step 4: command routing ───────────────────────────────────────────
         if route_command(text):

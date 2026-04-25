@@ -4,7 +4,7 @@ import json
 from core.state_manager import state_manager
 from core.event_manager import events
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://localhost:11434/api/chat"
 
 SYSTEM_PROMPT = """You are ARIA, a local AI assistant designed to help users perform tasks efficiently on their computer.
 
@@ -75,7 +75,7 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
     """
     # Threshold at which the very first chunk is immediately dispatched.
     # Small enough to fire in ~0.3–0.6 s; large enough to be speakable.
-    FIRST_CHUNK_LIMIT = 6
+    FIRST_CHUNK_LIMIT = 12
 
     state_manager.set_state("thinking")
     events.emit("thinking_start")
@@ -85,9 +85,12 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
             OLLAMA_URL,
             json={
                 "model": model,
-                "prompt": prompt,
-                "system": SYSTEM_PROMPT,
-                "stream": True
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ],
+                "stream": True,
+                "keep_alive": -1
             },
             stream=True,
             timeout=120
@@ -105,13 +108,13 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
                 if line:
                     try:
                         data = json.loads(line)
-                        token = data.get("response", "")
+                        token = data.get("message", {}).get("content", "")
 
                         if first_token:
                             first_token = False
                             response_time = time.time() - start_time
                             events.emit("response_start")
-                            print(f"[DEBUG] First token: {response_time:.2f}s")
+                            # print(f"[DEBUG] First token: {response_time:.2f}s")
                             if on_first_token:
                                 on_first_token(response_time)
 
