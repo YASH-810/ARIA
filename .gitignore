@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual env
+venv/
+.env/
+
+# Secrets
+.env
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# AI models
+*.pt
+*.pth
+*.bin
+*.gguf
+
