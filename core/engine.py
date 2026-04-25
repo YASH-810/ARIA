@@ -74,8 +74,9 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
         so the TTS engine applies the word-timing sync loop.
     """
     # Threshold at which the very first chunk is immediately dispatched.
-    # Small enough to fire in ~0.3–0.6 s; large enough to be speakable.
-    FIRST_CHUNK_LIMIT = 12
+    # We increase this to 20 to ensure Piper has enough audio duration to
+    # synthesize the second chunk without a pause.
+    FIRST_CHUNK_LIMIT = 20
 
     state_manager.set_state("thinking")
     events.emit("thinking_start")
@@ -138,9 +139,13 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
 
                         # ── CHUNK-DISPATCH LOGIC ──────────────────────────────────
                         if not first_chunk_done:
-                            should_fire = (
-                                len(sentence_buffer) >= FIRST_CHUNK_LIMIT
-                                or is_sentence_end
+                            # To prevent "half" words and intonation drops, the first chunk
+                            # MUST wait for a natural grammatical pause (comma, period, etc.)
+                            # AND be long enough to hide the TTS latency of the next chunk.
+                            is_phrase_end = token.endswith((",", ";", ":", "\n", " -", "—", "...", ".\"")) or sentence_buffer.endswith(", ")
+                            
+                            should_fire = is_sentence_end or (
+                                len(sentence_buffer) >= FIRST_CHUNK_LIMIT and is_phrase_end
                             )
                             if should_fire and sentence_buffer.strip():
                                 if on_sentence:
