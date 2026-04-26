@@ -69,7 +69,8 @@ def run_cli():
     pipeline = VoicePipeline(on_transcript=_on_transcript, on_first_token=_stop_loader)
     
     # Set up Orchestrator
-    from core.orchestrator import Orchestrator, CommandHandler
+    from core.orchestrator import Orchestrator
+    from core.command_handler import CommandHandler
     import core.router as router_module
     
     orchestrator = Orchestrator(

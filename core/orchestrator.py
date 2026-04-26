@@ -27,37 +27,7 @@ def detect_fast_intent(user_input: str):
 
     return None
 
-class CommandHandler:
-    def handle(self, command: str):
-        from core.config_manager import config
-        cmd = command.strip().lower()
-        
-        if cmd.startswith("/set name "):
-            new_name = command.strip()[10:]
-            config.set("user_name", new_name)
-            print(f"ARIA > Name updated to {new_name}")
-        elif cmd.startswith("/model "):
-            new_model = command.strip()[7:]
-            config.set("model", new_model)
-            print(f"ARIA > Model set to {new_model}")
-        elif cmd == "/debug on":
-            config.set("debug", True)
-            from core.logger import set_debug
-            set_debug(True)
-            print("ARIA > Debug mode ON")
-        elif cmd == "/debug off":
-            config.set("debug", False)
-            from core.logger import set_debug
-            set_debug(False)
-            print("ARIA > Debug mode OFF")
-        elif cmd == "/mute":
-            config.set("tts_enabled", False)
-            print("ARIA > TTS Muted")
-        elif cmd == "/unmute":
-            config.set("tts_enabled", True)
-            print("ARIA > TTS Unmuted")
-        else:
-            print(f"ARIA > Executing system command: {command}")
+
 
 class Orchestrator:
     def __init__(self, engine, router_module, state_manager, command_handler):
