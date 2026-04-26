@@ -10,7 +10,7 @@ Architecture
        │
        ▼
   TEXT_QUEUE  ──── Thread 1: _tts_generator ────►  AUDIO_QUEUE
-                   (Piper synthesis,                    │
+                   (Piper synthesis,                     │
                     runs while prev chunk plays)         │
                                                  Thread 2: _audio_player
                                                  (pygame playback +
