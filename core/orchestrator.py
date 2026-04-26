@@ -26,6 +26,36 @@ def detect_fast_intent(user_input: str):
             }
         }
 
+    if text.startswith("search ") or text.startswith("search for "):
+        query = text.replace("search for ", "", 1).replace("search ", "", 1).strip()
+        action = "search"
+        if " on youtube" in query:
+            query = query.replace(" on youtube", "").strip()
+            action = "youtube"
+        elif " on wikipedia" in query:
+            query = query.replace(" on wikipedia", "").strip()
+            action = "wikipedia"
+            
+        return {
+            "type": "tool",
+            "tool": "browser_action",
+            "args": {
+                "action": action,
+                "query": query
+            }
+        }
+        
+    if text.startswith("play ") and " on youtube" in text:
+        query = text.replace("play ", "", 1).replace(" on youtube", "").strip()
+        return {
+            "type": "tool",
+            "tool": "browser_action",
+            "args": {
+                "action": "youtube",
+                "query": query
+            }
+        }
+
     return None
 
 
