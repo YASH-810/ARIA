@@ -342,36 +342,30 @@ def _tts_generator() -> None:
                 TEXT_QUEUE.task_done()
                 break
 
-            # ── Interrupt check ──────────────────────────────────────────────
-            if INTERRUPT_EVENT.is_set():
-                TEXT_QUEUE.task_done()
-                continue
-
-            # ── Synthesise with persistent Piper process ─────────────────────
-            # _synthesise_chunk() reuses a single long-lived Piper process.
-            # The per-chunk subprocess startup cost (~150–300 ms) is eliminated;
-            # only the actual synthesis time remains.
-            temp_path = os.path.join(
-                tempfile.gettempdir(),
-                f"aria_tts_{uuid.uuid4().hex}.wav"
-            )
-
-            synthesised = False
             try:
-                synthesised = _synthesise_chunk(text, temp_path)
-            except Exception as exc:
-                print(f"[Piper Error] {exc}")
+                # ── Interrupt check ──────────────────────────────────────────────
+                if INTERRUPT_EVENT.is_set():
+                    continue
 
-            # ── Forward to player (or discard if interrupted) ─────────────────
-            # By the time we reach this point, the PLAYER thread is typically
-            # already playing chunk N — chunk N+1 (this one) goes directly into
-            # AUDIO_QUEUE and will be played with zero wait when chunk N ends.
-            if synthesised and not INTERRUPT_EVENT.is_set():
-                AUDIO_QUEUE.put((temp_path, text, print_text, is_first))
-            else:
-                _safe_delete(temp_path)
+                # ── Synthesise with persistent Piper process ─────────────────────
+                temp_path = os.path.join(
+                    tempfile.gettempdir(),
+                    f"aria_tts_{uuid.uuid4().hex}.wav"
+                )
 
-            TEXT_QUEUE.task_done()
+                synthesised = False
+                try:
+                    synthesised = _synthesise_chunk(text, temp_path)
+                except Exception as exc:
+                    print(f"[Piper Error] {exc}")
+
+                # ── Forward to player (or discard if interrupted) ─────────────────
+                if synthesised and not INTERRUPT_EVENT.is_set():
+                    AUDIO_QUEUE.put((temp_path, text, print_text, is_first))
+                else:
+                    _safe_delete(temp_path)
+            finally:
+                TEXT_QUEUE.task_done()
 
         except Exception as exc:
             print(f"[TTS Generator Error] {exc}")
@@ -409,95 +403,79 @@ def _audio_player() -> None:
                 AUDIO_QUEUE.task_done()
                 break
 
-            # ── Unpack ───────────────────────────────────────────────────────
-            if isinstance(item, tuple) and len(item) == 4:
-                wav_path, text, print_text, is_first = item
-            elif isinstance(item, tuple) and len(item) == 3:
-                wav_path, text, print_text = item
-                is_first = False
-            else:
-                # Malformed item — discard safely
-                AUDIO_QUEUE.task_done()
-                continue
-
-            # ── Interrupt check (item may have been queued before interrupt) ──
-            if INTERRUPT_EVENT.is_set():
-                _safe_delete(wav_path)
-                AUDIO_QUEUE.task_done()
-                continue
-
-            # ── Load audio into pygame memory ─────────────────────────────────
-            # Loading into a Sound object is instantaneous; the file can be
-            # deleted immediately after — no disk I/O during playback.
-            # Guard: file must exist before we attempt to load it.
-            # A missing file means synthesis failed silently (e.g. Piper
-            # exited mid-request).  Skip this chunk without an error message
-            # — the conversation continues normally.
-            if not os.path.isfile(wav_path):
-                _safe_delete(wav_path)
-                AUDIO_QUEUE.task_done()
-                continue
-
             try:
-                sound = pygame.mixer.Sound(wav_path)
-            except Exception as exc:
-                print(f"[Audio Load Error] {exc}")
-                _safe_delete(wav_path)
-                AUDIO_QUEUE.task_done()
-                continue
-            finally:
-                # Always delete the temp file — Sound already owns the data
-                _safe_delete(wav_path)
+                # ── Unpack ───────────────────────────────────────────────────────
+                if isinstance(item, tuple) and len(item) == 4:
+                    wav_path, text, print_text, is_first = item
+                elif isinstance(item, tuple) and len(item) == 3:
+                    wav_path, text, print_text = item
+                    is_first = False
+                else:
+                    # Malformed item — discard safely
+                    continue
 
-            channel = pygame.mixer.Channel(0)
+                # ── Interrupt check (item may have been queued before interrupt) ──
+                if INTERRUPT_EVENT.is_set():
+                    _safe_delete(wav_path)
+                    continue
 
-            # ── FIRST CHUNK: instant-start path ──────────────────────────────
-            if is_first:
-                # Print text NOW so the user sees it as audio begins
-                if print_text and text:
-                    print(text + " ", end="", flush=True)
+                # ── Load audio into pygame memory ─────────────────────────────────
+                if not os.path.isfile(wav_path):
+                    _safe_delete(wav_path)
+                    continue
 
-                # Wait only for any previous lingering audio (e.g. greeting)
-                _wait_channel_free(channel, poll=0.005)
+                try:
+                    sound = pygame.mixer.Sound(wav_path)
+                except Exception as exc:
+                    print(f"[Audio Load Error] {exc}")
+                    _safe_delete(wav_path)
+                    continue
+                finally:
+                    # Always delete the temp file — Sound already owns the data
+                    _safe_delete(wav_path)
 
-                if not INTERRUPT_EVENT.is_set():
-                    state_manager.set_state("speaking")
-                    events.emit("tts_start")
-                    channel.play(sound)
+                channel = pygame.mixer.Channel(0)
 
-            # ── SUBSEQUENT CHUNKS: gap-free synced path ───────────────────────
-            else:
-                # Wait for the previous chunk to finish — this is near-instant
-                # because the generator pre-buffered this chunk during playback
-                _wait_channel_free(channel, poll=0.005)
-
-                if not INTERRUPT_EVENT.is_set():
-                    state_manager.set_state("speaking")
-                    events.emit("tts_start")
-                    channel.play(sound)
-
+                # ── FIRST CHUNK: instant-start path ──────────────────────────────
+                if is_first:
+                    # Print text NOW so the user sees it as audio begins
                     if print_text and text:
-                        _print_words_synced(text, sound.get_length())
+                        print(text + " ", end="", flush=True)
 
-            AUDIO_QUEUE.task_done()
+                    # Wait only for any previous lingering audio (e.g. greeting)
+                    _wait_channel_free(channel, poll=0.005)
 
-            # True end-of-speech: both queues must be empty AND the channel
-            # must have finished playing.  We wait for the channel here rather
-            # than relying on unfinished_tasks (which can read as 0 between
-            # task_done() and the next put(), causing a false trigger).
-            # Skipped entirely if an interrupt is in progress — stop_speaking()
-            # handles the state reset in that case.
-            if (
-                not INTERRUPT_EVENT.is_set()
-                and TEXT_QUEUE.empty()
-                and AUDIO_QUEUE.empty()
-            ):
-                # Wait for the current audio to physically finish before
-                # transitioning state and emitting tts_end.
-                _wait_channel_free(channel, poll=0.005)
-                if not INTERRUPT_EVENT.is_set():
-                    state_manager.set_state("idle")
-                    events.emit("tts_end")
+                    if not INTERRUPT_EVENT.is_set():
+                        state_manager.set_state("speaking")
+                        events.emit("tts_start")
+                        channel.play(sound)
+
+                # ── SUBSEQUENT CHUNKS: gap-free synced path ───────────────────────
+                else:
+                    # Wait for the previous chunk to finish — this is near-instant
+                    _wait_channel_free(channel, poll=0.005)
+
+                    if not INTERRUPT_EVENT.is_set():
+                        state_manager.set_state("speaking")
+                        events.emit("tts_start")
+                        channel.play(sound)
+
+                        if print_text and text:
+                            _print_words_synced(text, sound.get_length())
+
+                # True end-of-speech
+                if (
+                    not INTERRUPT_EVENT.is_set()
+                    and TEXT_QUEUE.empty()
+                    and AUDIO_QUEUE.empty()
+                ):
+                    _wait_channel_free(channel, poll=0.005)
+                    if not INTERRUPT_EVENT.is_set():
+                        state_manager.set_state("idle")
+                        events.emit("tts_end")
+                        
+            finally:
+                AUDIO_QUEUE.task_done()
 
         except Exception as exc:
             print(f"[Audio Player Error] {exc}")

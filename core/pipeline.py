@@ -121,14 +121,17 @@ class VoicePipeline:
             self._on_transcript(text)
 
         # ── Step 4: command routing ───────────────────────────────────────────
-        if route_command(text):
-            return text
+        # Removed legacy NLP routing so the LLM handles all intents natively.
 
         # ── Step 5: LLM → TTS ────────────────────────────────────────────────
-        self._stream_response(text)
+        full_text = self._stream_response(text)
 
         # Wait for all queued audio to finish before returning
         self._wait_for_speech()
+        
+        # Execute any actions requested by LLM
+        if full_text and "[ACTION]" in full_text:
+            self._execute_llm_actions(full_text)
 
         return text
 
@@ -193,7 +196,7 @@ class VoicePipeline:
 
     # ── Internal helpers ───────────────────────────────────────────────────────
 
-    def _stream_response(self, text: str) -> None:
+    def _stream_response(self, text: str) -> str:
         """Send *text* to the LLM and pipe each sentence chunk to TTS.
 
         ``ask_ollama_stream`` handles:
@@ -214,12 +217,39 @@ class VoicePipeline:
         def _on_sentence(chunk: str, is_first: bool = False) -> None:
             tts_engine.enqueue_text(chunk, print_text=True, is_first=is_first)
 
-        ask_ollama_stream(
+        return ask_ollama_stream(
             text,
             on_first_token=_first_token_cb,
             on_sentence=_on_sentence,
             model=self.model,
         )
+
+    def _execute_llm_actions(self, full_text: str) -> None:
+        try:
+            action_block = full_text.split("[ACTION]")[1]
+            lines = action_block.split("\n")
+            action_type = None
+            target = None
+            for line in lines:
+                line = line.strip()
+                if line.startswith("type:"):
+                    action_type = line.split(":", 1)[1].strip()
+                elif line.startswith("target:"):
+                    target = line.split(":", 1)[1].strip().strip('\'"')
+            
+            if action_type and target:
+                from commands.actions import run_command, create_file, delete_file, launch_app
+                if action_type in ["open_app", "open"]:
+                    from core.router import open_anything
+                    open_anything(target)
+                elif action_type == "run_command":
+                    run_command(target)
+                elif action_type == "create_file":
+                    create_file(target)
+                elif action_type == "delete_file":
+                    delete_file(target)
+        except Exception as e:
+            print(f"\n[Pipeline Action Error] {e}")
 
     def _wait_for_speech(self) -> None:
         """Block until the TTS queue is drained or a stop is requested."""

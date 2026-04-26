@@ -74,15 +74,19 @@ def create_file(filename):
     state_manager.set_state("executing")
     try:
         if os.path.exists(filename):
-            print(f"File already exists: {filename}")
+            print(f"ARIA > File already exists: {filename}")
             return
+            
+        parent_dir = os.path.dirname(filename)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
 
         with open(filename, "w") as f:
             f.write("")
 
-        print(f"Created file: {filename}")
+        print(f"ARIA > Created file: {filename}")
     except Exception as e:
-        print(f"Error creating file: {e}")
+        print(f"ARIA > Error creating file: {e}")
     finally:
         events.emit("command_executed", {"type": "create_file", "target": filename})
         state_manager.set_state("idle")
@@ -97,6 +101,8 @@ def delete_file(filename):
             print(f"Deleted file: {filename}")
         else:
             print("Cancelled.")
+    except Exception as e:
+        print(f"ARIA > Error deleting file: {e}")
     finally:
         events.emit("command_executed", {"type": "delete_file", "target": filename})
         state_manager.set_state("idle")

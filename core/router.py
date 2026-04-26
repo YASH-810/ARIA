@@ -18,7 +18,14 @@ COMMON_PATHS = {
     "desktop": os.path.expanduser("~/Desktop"),
 }
 
+INSTALLED_APPS = {}
+APPS_LOADED = False
+
 def get_installed_apps():
+    global INSTALLED_APPS, APPS_LOADED
+    if APPS_LOADED:
+        return INSTALLED_APPS
+        
     apps = {}
     paths = [
         os.path.expandvars(r"%ProgramData%\Microsoft\Windows\Start Menu\Programs"),
@@ -31,10 +38,14 @@ def get_installed_apps():
                 if file.endswith(".lnk"):
                     name = os.path.splitext(file)[0].lower()
                     apps[name] = os.path.join(root, file)
+    
+    INSTALLED_APPS = apps
+    APPS_LOADED = True
     return apps
 
-# Cache installed apps at startup
-INSTALLED_APPS = get_installed_apps()
+# Cache installed apps at startup in the background
+import threading
+threading.Thread(target=get_installed_apps, daemon=True).start()
 
 
 def fuzzy_match(target, choices):
@@ -67,8 +78,9 @@ def open_anything(target):
         return
 
     # 3. Installed Apps (Exact Match)
-    if target in INSTALLED_APPS:
-        launch_app(INSTALLED_APPS[target])
+    installed_apps = get_installed_apps()
+    if target in installed_apps:
+        launch_app(installed_apps[target])
         print(f"ARIA > Opening {target}...")
         speak_chunk(f"Opening {target}")
         return
@@ -81,9 +93,9 @@ def open_anything(target):
         return
 
     # 5. Installed Apps (Fuzzy Match)
-    match = fuzzy_match(target, list(INSTALLED_APPS.keys()))
+    match = fuzzy_match(target, list(installed_apps.keys()))
     if match:
-        launch_app(INSTALLED_APPS[match])
+        launch_app(installed_apps[match])
         print(f"ARIA > Opening {match}...")
         speak_chunk(f"Opening {match}")
         return

@@ -99,13 +99,15 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
         response.raise_for_status()
 
         full_text = ""
+        flushed_text = ""
         sentence_buffer = ""
         first_token = True       # fires on_first_token callback + response_start once
         chunk_count = 0          # how many chunks have been dispatched
         first_chunk_done = False  # True after the instant first chunk fires
+        in_action_block = False
 
         try:
-            for line in response.iter_lines(decode_unicode=True, chunk_size=1):
+            for line in response.iter_lines(decode_unicode=True):
                 if line:
                     try:
                         data = json.loads(line)
@@ -120,10 +122,28 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
                                 on_first_token(response_time)
 
                         full_text += token
+
+                        if not in_action_block and "[ACTION]" in full_text:
+                            in_action_block = True
+                            before_action = full_text.split("[ACTION]")[0][len(flushed_text):]
+                            if before_action.strip():
+                                if on_sentence:
+                                    on_sentence(before_action.strip(), is_first=not first_chunk_done)
+                                else:
+                                    print(before_action, end="", flush=True)
+                                flushed_text += before_action
+                                first_chunk_done = True
+                            sentence_buffer = ""
+                            continue
+                            
+                        if in_action_block:
+                            continue
+
                         sentence_buffer += token
 
                         if not on_sentence:
                             print(token, end="", flush=True)
+                            flushed_text += token
 
                         # ── SENTENCE-BOUNDARY DETECTION ──────────────────────────
                         # Check the incoming *token* rather than scanning the whole
@@ -150,6 +170,7 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
                             if should_fire and sentence_buffer.strip():
                                 if on_sentence:
                                     on_sentence(sentence_buffer.strip(), is_first=True)
+                                flushed_text += sentence_buffer
                                 chunk_count += 1
                                 sentence_buffer = ""
                                 first_chunk_done = True
@@ -166,6 +187,7 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
                             if (is_sentence_end or is_long_chunk) and sentence_buffer.strip():
                                 if on_sentence:
                                     on_sentence(sentence_buffer.strip(), is_first=False)
+                                flushed_text += sentence_buffer
                                 chunk_count += 1
                                 sentence_buffer = ""
 
