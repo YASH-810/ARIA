@@ -2,6 +2,7 @@ import time
 import core.router as router
 from core.state_manager import state_manager
 from core.logger import debug, info, warn, error
+from core.memory_manager import memory
 
 def detect_fast_intent(user_input: str):
     text = user_input.lower().strip()
@@ -94,8 +95,21 @@ class Orchestrator:
                 debug("LLM_FALLBACK", "Triggered")
                 debug("ORCHESTRATOR", "Using LLM fallback")
                 
-                response = self.engine.process(user_input)
-                self._handle_llm_response(response)
+                if "my name is" in user_input.lower():
+                    name = user_input.lower().split("my name is")[-1].strip()
+                    memory.set_long_term("user_name", name)
+                
+                recent = memory.get_recent_context()
+                debug("MEMORY_CONTEXT", str(recent))
+                
+                context_text = ""
+                for item in recent:
+                    context_text += f"User: {item['user']}\nAI: {item['ai']}\n"
+                
+                final_input = context_text + "\nUser: " + user_input
+                
+                response = self.engine.process(final_input)
+                self._handle_llm_response(response, user_input)
 
         except Exception as e:
             error("SYSTEM", str(e))
@@ -104,7 +118,7 @@ class Orchestrator:
 
         info("TIME", f"{time.time() - start:.2f}s")
 
-    def _handle_llm_response(self, response):
+    def _handle_llm_response(self, response, user_input=""):
         debug("RESPONSE_RAW", str(response))
         debug("RESPONSE_TYPE", str(type(response)))
         
@@ -126,6 +140,7 @@ class Orchestrator:
 
             elif response.get("type") == "response":
                 print("ARIA >", response.get("content"))
+                memory.add_interaction(user_input, response.get("content"))
         else:
             print("ARIA >", response)
 
