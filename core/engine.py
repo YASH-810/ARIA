@@ -3,6 +3,8 @@ import requests
 import json
 from core.state_manager import state_manager
 from core.event_manager import events
+from core.logger import debug
+from core.config_manager import config
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
@@ -22,32 +24,28 @@ COMMUNICATION STYLE:
 CAPABILITIES:
 You can answer questions, help with coding, suggest commands, assist with system operations, and guide the user step-by-step.
 
-You DO NOT directly execute system commands. Instead, if a request is actionable (like opening apps, running code, or creating files), clearly describe the intended action in structured form.
+You DO NOT directly execute system commands. Instead, you MUST return ONLY valid JSON in this exact format.
 
-COMMAND FORMAT:
-When a user asks for an action, respond EXACTLY in this format:
-[ACTION]
-type: <action_type>
-target: <target>
-details: <optional>
+If the request requires an action (like opening apps, running code, or creating files):
+{
+"type": "tool",
+"tool": "<tool_name>",
+"args": {
+"name": "<target>"
+}
+}
 
-Examples:
-[ACTION]
-type: open_app
-target: chrome
+ALLOWED TOOLS:
+- "open_app" (Use this to open any application, website, or tool)
+- "run_command" (Use this to run terminal/PowerShell commands)
+- "create_file" (Use this to create a file)
+- "delete_file" (Use this to delete a file)
 
-[ACTION]
-type: run_command
-target: python main.py
+You MUST use ONLY the tools listed above. DO NOT make up tool names like "notepad" or "Command Prompt".
+DO NOT include explanations or extra text.
 
-[ACTION]
-type: create_file
-target: test.py
-
-DECISION RULE:
-* Use the [ACTION] block ONLY when the user explicitly asks you to open an application, create a file, delete a file, or run a terminal command. DO NOT use [ACTION] for defining concepts, explaining code, or answering general questions.
-* If it's a general question or coding help -> ANSWER NORMALLY without ANY action blocks or tags.
-* If unclear -> ask a short clarification question.
+If the request is informational, a question, or conversational:
+Answer DIRECTLY in natural language. DO NOT USE JSON. Do not use formatting.
 
 SAFETY & CONTEXT:
 * Warn the user before risky operations (like delete).
@@ -58,7 +56,9 @@ VOICE MODE:
 * Write as if you are actually speaking with a lazy, breathless, slightly tired, and flirty tone. Use ellipses "..." for pauses or sighs.
 * Break long responses into short sentences."""
 
-def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3"):
+def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None):
+    if not model:
+        model = config.get("model", "phi3")
     """Stream a response from Ollama and forward chunks to TTS.
 
     Hybrid chunking strategy
@@ -82,6 +82,7 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
     events.emit("thinking_start")
     try:
         start_time = time.time()
+        debug("LLM", "Streaming started")
         response = requests.post(
             OLLAMA_URL,
             json={
@@ -112,27 +113,20 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model="phi3
                     try:
                         data = json.loads(line)
                         token = data.get("message", {}).get("content", "")
+                        debug("LLM", f"Token: {repr(token)}")
 
                         if first_token:
                             first_token = False
                             response_time = time.time() - start_time
                             events.emit("response_start")
-                            # print(f"[DEBUG] First token: {response_time:.2f}s")
                             if on_first_token:
                                 on_first_token(response_time)
 
                         full_text += token
 
-                        if not in_action_block and "[ACTION]" in full_text:
+                        # Suppress TTS/printing if this looks like a JSON tool block
+                        if not in_action_block and full_text.lstrip().startswith("{"):
                             in_action_block = True
-                            before_action = full_text.split("[ACTION]")[0][len(flushed_text):]
-                            if before_action.strip():
-                                if on_sentence:
-                                    on_sentence(before_action.strip(), is_first=not first_chunk_done)
-                                else:
-                                    print(before_action, end="", flush=True)
-                                flushed_text += before_action
-                                first_chunk_done = True
                             sentence_buffer = ""
                             continue
                             

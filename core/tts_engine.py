@@ -231,6 +231,12 @@ def enqueue_text(text: str, print_text: bool = False, is_first: bool = False) ->
         is_first:   If True this is the very first chunk of a new response —
                     text is printed instantly (before audio) to eliminate latency.
     """
+    from core.config_manager import config
+    if not config.get("tts_enabled", True):
+        if print_text and text:
+            print(text + " ", end="", flush=True)
+        return
+
     if text and text.strip():
         # Clear any stale interrupt so the workers process this new item
         reset_interrupt()

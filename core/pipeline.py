@@ -80,28 +80,13 @@ class VoicePipeline:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def run_once(self, text: str = "") -> str:
-        """Execute one complete interaction cycle.
-
-        Parameters
-        ----------
-        text : str
-            Pre-supplied text input.  If empty the pipeline will call
-            ``listen()`` (STT) to obtain input from the microphone.
-
-        Returns
-        -------
-        str
-            The user input that was processed (may be empty if nothing was
-            captured from the microphone).
-
-        Flow
-        ----
-        1. Obtain input — text arg OR STT
-        2. Interrupt any ongoing speech
-        3. Emit ``"user_input"``
-        4. Route as command → execute and return
-        5. Otherwise → stream LLM → TTS
+    def process(self, text: str = "") -> str:
+        """
+        Orchestrates a single turn of interaction:
+        1. Listen (if no text provided)
+        2. Call LLM
+        3. Stream audio
+        Returns the full text of the LLM response.
         """
         # ── Step 1: obtain input ──────────────────────────────────────────────
         is_voice = False
@@ -123,17 +108,44 @@ class VoicePipeline:
         # ── Step 4: command routing ───────────────────────────────────────────
         # Removed legacy NLP routing so the LLM handles all intents natively.
 
-        # ── Step 5: LLM → TTS ────────────────────────────────────────────────
+        # ── Step 4: LLM → TTS ────────────────────────────────────────────────
         full_text = self._stream_response(text)
 
         # Wait for all queued audio to finish before returning
         self._wait_for_speech()
         
-        # Execute any actions requested by LLM
-        if full_text and "[ACTION]" in full_text:
-            self._execute_llm_actions(full_text)
-
-        return text
+        import json
+        from core.logger import debug
+        
+        debug("JSON_RAW", full_text)
+        
+        # Helper to extract the first complete JSON object
+        def extract_json(text):
+            start = text.find('{')
+            if start == -1:
+                return text
+            depth = 0
+            for i in range(start, len(text)):
+                if text[i] == '{':
+                    depth += 1
+                elif text[i] == '}':
+                    depth -= 1
+                    if depth == 0:
+                        return text[start:i+1]
+            return text
+            
+        json_str = extract_json(full_text)
+        
+        try:
+            parsed = json.loads(json_str)
+            debug("JSON_PARSED", str(parsed))
+            return parsed
+        except Exception as e:
+            debug("JSON_PARSE_ERROR", str(e))
+            return {
+                "type": "response",
+                "content": full_text
+            }
 
     def handle_interrupt(self) -> None:
         """Stop any ongoing TTS and reset to idle.
@@ -159,7 +171,7 @@ class VoicePipeline:
     def run_loop(self) -> None:
         """Run continuous voice interaction cycles until ``stop()`` is called.
 
-        Each iteration calls ``run_once()`` with no text argument (STT mode).
+        Each iteration calls ``process()`` with no text argument (STT mode).
         Say "exit", "quit", or "stop" to break the loop naturally.
 
         This method blocks the calling thread.  Run it in a daemon thread
@@ -171,7 +183,7 @@ class VoicePipeline:
 
         while self._running and not self._stop_event.is_set():
             try:
-                transcript = self.run_once()
+                transcript = self.process()
 
                 if transcript.lower().strip() in ("exit", "quit", "stop"):
                     print("\nARIA > Exiting voice mode.")
@@ -223,33 +235,6 @@ class VoicePipeline:
             on_sentence=_on_sentence,
             model=self.model,
         )
-
-    def _execute_llm_actions(self, full_text: str) -> None:
-        try:
-            action_block = full_text.split("[ACTION]")[1]
-            lines = action_block.split("\n")
-            action_type = None
-            target = None
-            for line in lines:
-                line = line.strip()
-                if line.startswith("type:"):
-                    action_type = line.split(":", 1)[1].strip()
-                elif line.startswith("target:"):
-                    target = line.split(":", 1)[1].strip().strip('\'"')
-            
-            if action_type and target:
-                from commands.actions import run_command, create_file, delete_file, launch_app
-                if action_type in ["open_app", "open"]:
-                    from core.router import open_anything
-                    open_anything(target)
-                elif action_type == "run_command":
-                    run_command(target)
-                elif action_type == "create_file":
-                    create_file(target)
-                elif action_type == "delete_file":
-                    delete_file(target)
-        except Exception as e:
-            print(f"\n[Pipeline Action Error] {e}")
 
     def _wait_for_speech(self) -> None:
         """Block until the TTS queue is drained or a stop is requested."""

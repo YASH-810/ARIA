@@ -1,0 +1,32 @@
+from core.config_manager import config
+
+LEVELS = {
+    "DEBUG": 0,
+    "INFO": 1,
+    "WARNING": 2,
+    "ERROR": 3
+}
+
+CURRENT_LEVEL = "DEBUG"
+
+def set_debug(enabled: bool):
+    config.set("debug", enabled)
+
+def log(level, tag, message):
+    if not config.get("debug", True):
+        return
+
+    if LEVELS[level] >= LEVELS[CURRENT_LEVEL]:
+        print(f"[{level}] [{tag}] {message}")
+
+def debug(tag, msg):
+    log("DEBUG", tag, msg)
+
+def info(tag, msg):
+    log("INFO", tag, msg)
+
+def warn(tag, msg):
+    log("WARNING", tag, msg)
+
+def error(tag, msg):
+    log("ERROR", tag, msg)

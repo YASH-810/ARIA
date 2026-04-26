@@ -7,6 +7,7 @@ from core.state_manager import state_manager
 from core.pipeline import VoicePipeline
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
+from core.logger import info, error, set_debug
 
 
 def show_banner():
@@ -66,11 +67,22 @@ def run_cli():
 
     # Single pipeline instance — Whisper model is already warm above
     pipeline = VoicePipeline(on_transcript=_on_transcript, on_first_token=_stop_loader)
+    
+    # Set up Orchestrator
+    from core.orchestrator import Orchestrator, CommandHandler
+    import core.router as router_module
+    
+    orchestrator = Orchestrator(
+        engine=pipeline,
+        router_module=router_module,
+        state_manager=state_manager,
+        command_handler=CommandHandler()
+    )
 
     show_banner()
-    greet_msg = "Good to see you, Yash. ARIA is online and ready to assist."
-    print(f"ARIA > {greet_msg}")
-    tts_engine.speak_chunk(greet_msg)
+    from core.config_manager import config
+    user_name = config.get("user_name", "Yash")
+    tts_engine.speak_chunk(f"Hello {user_name}, ready.")
 
     bindings = KeyBindings()
 
@@ -89,22 +101,31 @@ def run_cli():
             if not user_input.strip():
                 continue
 
-            # ── Voice mode triggered by F2 / Ctrl+Q / /v / /voice ────────────
-            if user_input.strip().lower() in ("/v", "/voice"):
-                pipeline.run_once()          # no text → STT path
-                print("\n" + "─" * 50)
-                continue
+
+
+
 
             # ── Exit ──────────────────────────────────────────────────────────
             if user_input.lower() in ("exit", "quit"):
                 print("\nARIA shutting down...")
                 break
 
-            # ── All other input: route through pipeline ───────────────────────
+            info("INPUT", user_input)
+
+            # ── All other input: route through Orchestrator ───────────────────
             # Start the spinner before handing off; the pipeline's on_first_token
             # callback (_stop_loader) will dismiss it when the LLM responds.
-            _start_loader()
-            pipeline.run_once(text=user_input)
+            # Only start spinner for non-commands and non-voice triggers
+            if not user_input.startswith("/") or user_input.strip().lower() in ("/v", "/voice"):
+                _start_loader()
+                
+            try:
+                orchestrator.handle_input(user_input)
+            except Exception as e:
+                error("CRASH", str(e))
+            finally:
+                _stop_loader_event.set()  # Guarantee the spinner stops!
+                
             print("\n" + "─" * 50)
 
         except KeyboardInterrupt:

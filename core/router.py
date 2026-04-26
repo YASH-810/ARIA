@@ -116,9 +116,36 @@ def open_anything(target):
         return
     except:
         pass
-
     print(f"ARIA > Could not find or open '{target}'.")
     speak_chunk(f"Could not find or open {target}")
+
+# =============================================================================
+# Tool Execution Interface for Orchestrator
+# =============================================================================
+
+def execute(action_type: str, args: dict) -> str:
+    from commands.actions import run_command, create_file, delete_file, launch_app
+    from core.logger import debug
+    
+    action_type = action_type.lower()
+    target = args.get("name", "")
+    
+    debug("ROUTER", f"Executing {action_type} with target: {target}")
+    
+    if action_type in ["open_app", "open"]:
+        open_anything(target)
+        return f"Opened {target}"
+    elif action_type == "run_command":
+        run_command(target)
+        return f"Ran command {target}"
+    elif action_type == "create_file":
+        create_file(target)
+        return f"Created file {target}"
+    elif action_type == "delete_file":
+        delete_file(target)
+        return f"Deleted file {target}"
+        
+    return f"Unknown action type: {action_type}"
 
 
 def _extract_filename(text):
