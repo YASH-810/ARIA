@@ -123,29 +123,32 @@ def open_anything(target):
 # Tool Execution Interface for Orchestrator
 # =============================================================================
 
-def execute(action_type: str, args: dict) -> str:
-    from commands.actions import run_command, create_file, delete_file, launch_app
-    from core.logger import debug
-    
-    action_type = action_type.lower()
-    target = args.get("name", "")
-    
-    debug("ROUTER", f"Executing {action_type} with target: {target}")
-    
-    if action_type in ["open_app", "open"]:
-        open_anything(target)
-        return f"Opened {target}"
-    elif action_type == "run_command":
-        run_command(target)
-        return f"Ran command {target}"
-    elif action_type == "create_file":
-        create_file(target)
-        return f"Created file {target}"
-    elif action_type == "delete_file":
-        delete_file(target)
-        return f"Deleted file {target}"
-        
-    return f"Unknown action type: {action_type}"
+from core.tools_registry import TOOLS
+from core.validator import validate
+from core.logger import log
+
+def execute(tool_name, args):
+    log("DEBUG", "ROUTER", f"Requested: {tool_name} {args}")
+
+    if tool_name not in TOOLS:
+        return f"Unknown tool: {tool_name}"
+
+    # VALIDATION
+    is_valid, msg = validate(tool_name, args)
+    if not is_valid:
+        log("WARNING", "VALIDATION", msg)
+        return f"Blocked: {msg}"
+
+    try:
+        func = TOOLS[tool_name]["function"]
+        result = func(**args) if isinstance(args, dict) else func(args)
+
+        log("INFO", "TOOL", result)
+        return result
+
+    except Exception as e:
+        log("ERROR", "TOOL", str(e))
+        return f"Execution error: {e}"
 
 
 def _extract_filename(text):

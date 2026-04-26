@@ -115,37 +115,43 @@ class VoicePipeline:
         self._wait_for_speech()
         
         import json
-        from core.logger import debug
+        from core.logger import log
         
-        debug("JSON_RAW", full_text)
+        clean_text = full_text.strip()
         
-        # Helper to extract the first complete JSON object
         def extract_json(text):
-            start = text.find('{')
-            if start == -1:
-                return text
-            depth = 0
-            for i in range(start, len(text)):
-                if text[i] == '{':
-                    depth += 1
-                elif text[i] == '}':
-                    depth -= 1
-                    if depth == 0:
-                        return text[start:i+1]
-            return text
+            start = text.find("{")
+            end = text.rfind("}")
+
+            if start != -1 and end != -1:
+                return text[start:end+1]
+
+            return None
             
-        json_str = extract_json(full_text)
+        json_block = extract_json(clean_text)
         
-        try:
-            parsed = json.loads(json_str)
-            debug("JSON_PARSED", str(parsed))
-            return parsed
-        except Exception as e:
-            debug("JSON_PARSE_ERROR", str(e))
-            return {
-                "type": "response",
-                "content": full_text
-            }
+        log("DEBUG", "JSON_RAW", full_text)
+        log("DEBUG", "JSON_CLEAN", str(json_block))
+
+        if not full_text.strip().endswith("}") and "{" in full_text:
+            log("WARNING", "JSON", "Incomplete JSON detected")
+
+        if json_block:
+            json_block = json_block.replace("\n", " ")
+            try:
+                parsed = json.loads(json_block)
+                log("DEBUG", "JSON_PARSED", str(parsed))
+                if isinstance(parsed, dict):
+                    if parsed.get("type") == "tool" and "tool" in parsed:
+                        return parsed
+            except json.JSONDecodeError:
+                log("DEBUG", "JSON_PARSED", "None")
+                pass
+
+        return {
+            "type": "response",
+            "content": clean_text
+        }
 
     def handle_interrupt(self) -> None:
         """Stop any ongoing TTS and reset to idle.
