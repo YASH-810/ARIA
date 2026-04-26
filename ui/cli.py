@@ -96,7 +96,9 @@ def run_cli():
     show_banner()
     from core.config_manager import config
     user_name = config.get("user_name", "Yash")
-    tts_engine.speak_chunk(f"Hello {user_name}, ready.")
+    greeting = f"Welcome back, {user_name}. All systems online and ready."
+    print(f"ARIA > {greeting}")
+    tts_engine.speak_chunk(greeting)
 
     bindings = KeyBindings()
 

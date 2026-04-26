@@ -40,7 +40,6 @@ class Orchestrator:
         from core.config_manager import config
         user_name = config.get("user_name", "Yash")
         info("SYSTEM", f"User: {user_name}")
-        print(f"ARIA > Hello {user_name}, ready.")
 
     def handle_input(self, user_input: str):
         start = time.time()
