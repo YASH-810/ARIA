@@ -5,6 +5,7 @@ from core.state_manager import state_manager
 from core.event_manager import events
 from core.logger import debug
 from core.config_manager import config
+from core.memory_manager import memory
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
@@ -24,7 +25,7 @@ Allowed tools: "open_app", "run_command", "create_file", "delete_file". DO NOT h
 2. IF CONVERSATIONAL / INFORMATIONAL:
 Answer directly in natural language using your personality. DO NOT use JSON. No complex formatting/symbols. Warn before risky operations."""
 
-def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None):
+def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None, context=None):
     if not model:
         model = config.get("model", "phi3")
     """Stream a response from Ollama and forward chunks to TTS.
@@ -51,14 +52,21 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None)
     try:
         start_time = time.time()
         debug("LLM", "Streaming started")
+        
+        user_name = memory.get_long_term("user_name", "User")
+        dynamic_system_prompt = f"{SYSTEM_PROMPT}\n\nCRITICAL CONTEXT:\n- Your name: ARIA\n- The user's name: {user_name}"
+        
+        messages = [{"role": "system", "content": dynamic_system_prompt}]
+        if context:
+            messages.extend(context)
+        if prompt:
+            messages.append({"role": "user", "content": prompt})
+
         response = requests.post(
             OLLAMA_URL,
             json={
                 "model": model,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ],
+                "messages": messages,
                 "stream": True,
                 "keep_alive": -1
             },

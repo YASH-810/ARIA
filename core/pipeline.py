@@ -80,7 +80,7 @@ class VoicePipeline:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def process(self, text: str = "") -> str:
+    def process(self, text: str = "", context: list = None):
         """
         Orchestrates a single turn of interaction:
         1. Listen (if no text provided)
@@ -109,7 +109,7 @@ class VoicePipeline:
         # Removed legacy NLP routing so the LLM handles all intents natively.
 
         # ── Step 4: LLM → TTS ────────────────────────────────────────────────
-        full_text = self._stream_response(text)
+        full_text = self._stream_response(text, context)
 
         # Wait for all queued audio to finish before returning
         self._wait_for_speech()
@@ -214,7 +214,7 @@ class VoicePipeline:
 
     # ── Internal helpers ───────────────────────────────────────────────────────
 
-    def _stream_response(self, text: str) -> str:
+    def _stream_response(self, text: str, context: list = None) -> str:
         """Send *text* to the LLM and pipe each sentence chunk to TTS.
 
         ``ask_ollama_stream`` handles:
@@ -240,6 +240,7 @@ class VoicePipeline:
             on_first_token=_first_token_cb,
             on_sentence=_on_sentence,
             model=self.model,
+            context=context,
         )
 
     def _wait_for_speech(self) -> None:

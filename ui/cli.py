@@ -11,6 +11,19 @@ from core.logger import info, error, set_debug
 
 
 def show_banner():
+    from core.config_manager import config
+    model_name = config.get("model", "phi3")
+    
+    active_engines = 0
+    try:
+        import requests
+        resp = requests.get("http://localhost:11434/api/tags", timeout=1)
+        if resp.status_code == 200:
+            models_data = resp.json().get("models", [])
+            active_engines = len(models_data)
+    except Exception:
+        pass
+        
     os.system("cls" if os.name == "nt" else "clear")
 
     print(r"""
@@ -22,7 +35,7 @@ def show_banner():
                 ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 """)
 
-    print("🟢 ARIA Online | Model: phi3 ")
+    print(f"🟢 ARIA Online | Model: {model_name} | Engine online: {active_engines}")
     print("─" * 50)
 
 

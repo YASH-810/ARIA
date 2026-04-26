@@ -34,3 +34,5 @@ htmlcov/
 *.bin
 *.gguf
 
+# Memory 
+memory.json

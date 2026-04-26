@@ -102,13 +102,12 @@ class Orchestrator:
                 recent = memory.get_recent_context()
                 debug("MEMORY_CONTEXT", str(recent))
                 
-                context_text = ""
+                messages = []
                 for item in recent:
-                    context_text += f"User: {item['user']}\nAI: {item['ai']}\n"
+                    messages.append({"role": "user", "content": item['user']})
+                    messages.append({"role": "assistant", "content": item['ai']})
                 
-                final_input = context_text + "\nUser: " + user_input
-                
-                response = self.engine.process(final_input)
+                response = self.engine.process(text=user_input, context=messages)
                 self._handle_llm_response(response, user_input)
 
         except Exception as e:
@@ -139,9 +138,8 @@ class Orchestrator:
                 print("ARIA >", result)
 
             elif response.get("type") == "response":
-                print("ARIA >", response.get("content"))
                 memory.add_interaction(user_input, response.get("content"))
         else:
-            print("ARIA >", response)
+            pass
 
         self.state.set_state("idle")
