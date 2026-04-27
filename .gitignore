@@ -36,3 +36,6 @@ htmlcov/
 
 # Memory 
 memory.json
+
+#config
+config.json
