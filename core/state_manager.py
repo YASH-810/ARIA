@@ -21,11 +21,11 @@ class StateManager:
         
         # Define allowed transitions based on requirements + practical edge cases
         self._valid_transitions = {
-            "idle": {"listening", "thinking", "executing", "speaking"}, # speaking for greetings
-            "listening": {"thinking", "idle"}, 
+            "idle": {"listening", "thinking", "executing", "speaking"},
+            "listening": {"thinking", "idle"},
             "thinking": {"speaking", "executing", "idle"},
-            "speaking": {"idle", "listening"},
-            "executing": {"idle", "speaking", "listening"}
+            "speaking": {"idle", "listening", "thinking"},   # thinking: mid-speech interrupt
+            "executing": {"idle", "speaking", "listening", "thinking"}
         }
 
     def set_state(self, new_state):

@@ -59,20 +59,25 @@ def run_cli():
     # We keep the spinner here in the CLI because it is a pure UI concern.
     _stop_loader_event = threading.Event()
     _loader_thread: threading.Thread | None = None
+    _spinner_started = False
 
     def _start_loader():
-        nonlocal _loader_thread
+        nonlocal _loader_thread, _spinner_started
         _stop_loader_event.clear()
         _loader_thread = threading.Thread(
             target=loading_animation, args=(_stop_loader_event,), daemon=True
         )
         _loader_thread.start()
+        _spinner_started = True
 
     def _stop_loader(response_time: float = 0.0):
+        nonlocal _spinner_started
         _stop_loader_event.set()
         if _loader_thread:
             _loader_thread.join()
-        print(f"\rARIA > [response time {response_time:.1f}s]", end="", flush=True)
+        if _spinner_started:
+            print(f"\rARIA > [response time {response_time:.1f}s]", end="", flush=True)
+            _spinner_started = False
 
     def _on_transcript(text: str):
         print(f"\nYou > {text}")

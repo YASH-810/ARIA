@@ -80,7 +80,7 @@ _PIPER_LOCK = threading.Lock()
 
 # ── Piper configuration ────────────────────────────────────────────────────────
 
-pygame.mixer.init()
+
 
 PIPER_DIR    = os.path.join(os.path.dirname(__file__), "piper_tts")
 PIPER_EXE    = os.path.join(PIPER_DIR, "piper", "piper.exe")
@@ -210,6 +210,13 @@ def _synthesise_chunk(text: str, out_path: str) -> bool:
 def start_tts_engine() -> None:
     """Spawn the synthesis and playback worker threads (call once at startup)."""
     global TTS_THREAD, PLAYER_THREAD
+
+    # Initialise pygame audio here (not at module level) so import never crashes
+    # even when no audio device is available.
+    try:
+        pygame.mixer.init()
+    except Exception as e:
+        print(f"[TTS] Audio device not available — voice output disabled. ({e})")
 
     TTS_THREAD = threading.Thread(target=_tts_generator, name="aria-tts-gen", daemon=True)
     TTS_THREAD.start()

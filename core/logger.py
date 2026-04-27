@@ -13,7 +13,9 @@ def set_debug(enabled: bool):
     config.set("debug", enabled)
 
 def log(level, tag, message):
-    if not config.get("debug", True):
+    # When debug mode is off, suppress DEBUG messages only.
+    # WARNING and ERROR always print regardless of the debug flag.
+    if level == "DEBUG" and not config.get("debug", True):
         return
 
     if LEVELS[level] >= LEVELS[CURRENT_LEVEL]:

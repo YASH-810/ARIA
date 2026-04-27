@@ -25,14 +25,18 @@ def detect_fast_intent(user_input: str):
             }
         }
 
-    if text.startswith("search ") or text.startswith("search for "):
-        query = text.replace("search for ", "", 1).replace("search ", "", 1).strip()
+    if text.startswith("search for ") or text.startswith("search "):
+        # Strip the prefix in correct priority order (longer prefix first)
+        if text.startswith("search for "):
+            query = text[len("search for "):].strip()
+        else:
+            query = text[len("search "):].strip()
         action = "search"
-        if " on youtube" in query:
-            query = query.replace(" on youtube", "").strip()
+        if query.endswith(" on youtube"):
+            query = query[: -len(" on youtube")].strip()
             action = "youtube"
-        elif " on wikipedia" in query:
-            query = query.replace(" on wikipedia", "").strip()
+        elif query.endswith(" on wikipedia"):
+            query = query[: -len(" on wikipedia")].strip()
             action = "wikipedia"
             
         return {
@@ -44,8 +48,8 @@ def detect_fast_intent(user_input: str):
             }
         }
         
-    if text.startswith("play ") and " on youtube" in text:
-        query = text.replace("play ", "", 1).replace(" on youtube", "").strip()
+    if text.startswith("play ") and text.endswith(" on youtube"):
+        query = text[len("play "): -len(" on youtube")].strip()
         return {
             "type": "tool",
             "tool": "browser_action",
@@ -168,10 +172,8 @@ class Orchestrator:
             elif response.get("type") == "response":
                 content = response.get("content", "")
                 memory.add_interaction(user_input, content)
-                if content:
-                    print(f"ARIA > {content}")
-                    import core.tts_engine as tts_engine
-                    tts_engine.speak_chunk(content)
+                # pipeline.process() already printed+spoke this text during
+                # streaming via enqueue_text(print_text=True). Do nothing here.
         else:
             # Plain string fallback (shouldn't happen, but handle gracefully)
             if response:

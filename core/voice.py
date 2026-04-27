@@ -32,6 +32,7 @@ def listen_offline():
     
     p = pyaudio.PyAudio()
     stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+    sample_width = p.get_sample_size(FORMAT)  # capture BEFORE p.terminate()
     
     state_manager.set_state("listening")
     print("\nARIA > Listening... (speak now)")
@@ -85,7 +86,7 @@ def listen_offline():
     try:
         with wave.open(temp_wav, 'wb') as wf:
             wf.setnchannels(CHANNELS)
-            wf.setsampwidth(p.get_sample_size(FORMAT))
+            wf.setsampwidth(sample_width)
             wf.setframerate(RATE)
             wf.writeframes(b''.join(frames))
             

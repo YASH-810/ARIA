@@ -94,13 +94,11 @@ def create_file(filename):
 def delete_file(filename):
     state_manager.set_state("executing")
     try:
-        confirm = input(f"Delete '{filename}'? (y/n): ")
-
-        if confirm.lower() == "y":
-            os.remove(filename)
-            print(f"Deleted file: {filename}")
-        else:
-            print("Cancelled.")
+        if not os.path.exists(filename):
+            print(f"ARIA > File not found: {filename}")
+            return
+        os.remove(filename)
+        print(f"ARIA > Deleted file: {filename}")
     except Exception as e:
         print(f"ARIA > Error deleting file: {e}")
     finally:
