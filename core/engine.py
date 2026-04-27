@@ -26,8 +26,6 @@ Allowed tools: "open_app", "run_command", "create_file", "delete_file". DO NOT h
 Answer directly in natural language using your personality. DO NOT use JSON. No complex formatting/symbols. Warn before risky operations."""
 
 def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None, context=None):
-    if not model:
-        model = config.get("model", "phi3")
     """Stream a response from Ollama and forward chunks to TTS.
 
     Hybrid chunking strategy
@@ -42,6 +40,8 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
         Normal 30-char / sentence-boundary logic.  Passed with is_first=False
         so the TTS engine applies the word-timing sync loop.
     """
+    if not model:
+        model = config.get("model", "phi3")
     # Threshold at which the very first chunk is immediately dispatched.
     # We increase this to 20 to ensure Piper has enough audio duration to
     # synthesize the second chunk without a pause.
@@ -94,7 +94,6 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
                         if first_token:
                             first_token = False
                             response_time = time.time() - start_time
-                            events.emit("response_start")
                             if on_first_token:
                                 on_first_token(response_time)
 

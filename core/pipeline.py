@@ -189,7 +189,13 @@ class VoicePipeline:
 
         while self._running and not self._stop_event.is_set():
             try:
-                transcript = self.process()
+                result = self.process()
+
+                # process() returns a dict; extract text content for comparison
+                if isinstance(result, dict):
+                    transcript = result.get("content", "")
+                else:
+                    transcript = str(result) if result else ""
 
                 if transcript.lower().strip() in ("exit", "quit", "stop"):
                     print("\nARIA > Exiting voice mode.")

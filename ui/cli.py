@@ -131,16 +131,17 @@ def run_cli():
             # ── All other input: route through Orchestrator ───────────────────
             # Start the spinner before handing off; the pipeline's on_first_token
             # callback (_stop_loader) will dismiss it when the LLM responds.
-            # Only start spinner for non-commands and non-voice triggers
-            if not user_input.startswith("/") or user_input.strip().lower() in ("/v", "/voice"):
+            # Only start spinner for plain-text input (not commands, not /voice —
+            # /voice triggers its own spinner via _on_transcript).
+            if not user_input.startswith("/"):
                 _start_loader()
-                
+
             try:
                 orchestrator.handle_input(user_input)
             except Exception as e:
                 error("CRASH", str(e))
             finally:
-                _stop_loader_event.set()  # Guarantee the spinner stops!
+                _stop_loader()  # Always print [response time Xs] and kill spinner
                 
             print("\n" + "─" * 50)
 

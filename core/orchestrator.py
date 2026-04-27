@@ -21,8 +21,7 @@ def detect_fast_intent(user_input: str):
             "type": "tool",
             "tool": "run_command",
             "args": {
-                # using 'name' to match router.py's target extraction
-                "name": text.replace("run ", "", 1).strip()
+                "command": text.replace("run ", "", 1).strip()
             }
         }
 
@@ -125,7 +124,7 @@ class Orchestrator:
                 debug("ORCHESTRATOR", "Using LLM fallback")
                 
                 if "my name is" in user_input.lower():
-                    name = user_input.lower().split("my name is")[-1].strip()
+                    name = user_input.lower().split("my name is")[-1].strip().title()
                     memory.set_long_term("user_name", name)
                 
                 recent = memory.get_recent_context()
@@ -167,8 +166,15 @@ class Orchestrator:
                 print("ARIA >", result)
 
             elif response.get("type") == "response":
-                memory.add_interaction(user_input, response.get("content"))
+                content = response.get("content", "")
+                memory.add_interaction(user_input, content)
+                if content:
+                    print(f"ARIA > {content}")
+                    import core.tts_engine as tts_engine
+                    tts_engine.speak_chunk(content)
         else:
-            pass
+            # Plain string fallback (shouldn't happen, but handle gracefully)
+            if response:
+                print(f"ARIA > {response}")
 
         self.state.set_state("idle")

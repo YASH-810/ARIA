@@ -11,6 +11,7 @@ class MemoryManager:
     def load(self):
         if not os.path.exists(MEMORY_PATH):
             self.create_default()
+            return  # create_default() already populated self.memory
 
         with open(MEMORY_PATH, "r") as f:
             self.memory = json.load(f)
@@ -24,6 +25,7 @@ class MemoryManager:
                 "preferences": {}
             }
         }
+        self.memory = default  # populate in-memory immediately
         with open(MEMORY_PATH, "w") as f:
             json.dump(default, f, indent=4)
 
