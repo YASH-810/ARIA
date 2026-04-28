@@ -54,6 +54,18 @@ class CommandHandler:
             else:
                 print("ARIA > Usage: /debug on|off")
 
+        elif cmd == "context":
+            if args and args[0] == "on":
+                config.set("context_enabled", True)
+                print("ARIA > Memory context enabled")
+            elif args and args[0] == "off":
+                config.set("context_enabled", False)
+                print("ARIA > Memory context disabled (responses will be stateless)")
+            else:
+                current = config.get("context_enabled", True)
+                status = "enabled" if current else "disabled"
+                print(f"ARIA > Context is {status}. Usage: /context on|off")
+
         elif cmd == "state":
             current = state_manager.get_state()
             print(f"ARIA > Current state: {current}")
@@ -72,6 +84,7 @@ ARIA Commands:
 /unmute         → Enable voice
 /model <name>   → Change model
 /debug on|off   → Toggle debug logs
+/context on|off → Toggle context memory
 /state          → Show current state
 /help           → Show this help
 """)

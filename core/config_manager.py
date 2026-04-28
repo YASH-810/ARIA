@@ -21,6 +21,7 @@ class ConfigManager:
             "user_name": "Yash",
             "model": "phi3",
             "tts_enabled": True,
+            "context_enabled": True,
             "debug": True
         }
         with open(CONFIG_PATH, "w") as f:

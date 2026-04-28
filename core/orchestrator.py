@@ -133,13 +133,16 @@ class Orchestrator:
                         name = raw_name.split()[0].rstrip(",.?!").title()
                         memory.set_long_term("user_name", name)
                 
-                recent = memory.get_recent_context()
-                debug("MEMORY_CONTEXT", str(recent))
-                
+                from core.config_manager import config
                 messages = []
-                for item in recent:
-                    messages.append({"role": "user", "content": item['user']})
-                    messages.append({"role": "assistant", "content": item['ai']})
+                if config.get("context_enabled", True):
+                    recent = memory.get_recent_context()
+                    debug("MEMORY_CONTEXT", str(recent))
+                    for item in recent:
+                        messages.append({"role": "user", "content": item['user']})
+                        messages.append({"role": "assistant", "content": item['ai']})
+                else:
+                    debug("MEMORY_CONTEXT", "DISABLED")
                 
                 response = self.engine.process(text=user_input, context=messages)
                 self._handle_llm_response(response, user_input)
@@ -172,8 +175,9 @@ class Orchestrator:
                 print("ARIA >", result)
 
             elif response.get("type") == "response":
-                content = response.get("content", "")
-                memory.add_interaction(user_input, content)
+                content = response.get("content", "").strip()
+                if content:
+                    memory.add_interaction(user_input, content)
                 # pipeline.process() already printed+spoke this text during
                 # streaming via enqueue_text(print_text=True). Do nothing here.
         else:
