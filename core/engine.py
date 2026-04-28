@@ -49,6 +49,7 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
 
     state_manager.set_state("thinking")
     events.emit("thinking_start")
+    full_text = ""
     try:
         start_time = time.time()
         debug("LLM", "Streaming started")
@@ -75,7 +76,6 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
         )
         response.raise_for_status()
 
-        full_text = ""
         sentence_buffer = ""
         first_token = True       # fires on_first_token callback + response_start once
         chunk_count = 0          # how many chunks have been dispatched
@@ -152,7 +152,6 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
                             if should_fire and sentence_buffer.strip():
                                 if on_sentence:
                                     on_sentence(sentence_buffer.strip(), is_first=True)
-                                flushed_text += sentence_buffer
                                 chunk_count += 1
                                 sentence_buffer = ""
                                 first_chunk_done = True
@@ -169,7 +168,6 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
                             if (is_sentence_end or is_long_chunk) and sentence_buffer.strip():
                                 if on_sentence:
                                     on_sentence(sentence_buffer.strip(), is_first=False)
-                                flushed_text += sentence_buffer
                                 chunk_count += 1
                                 sentence_buffer = ""
 
