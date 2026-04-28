@@ -2,5 +2,5 @@
     "user_name": "yash",
     "model": "gemma-heretic-local:latest",
     "tts_enabled": false,
-    "debug": false
+    "debug": true
 }

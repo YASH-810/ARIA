@@ -45,6 +45,7 @@ import tempfile
 import time
 import uuid
 import subprocess
+import re
 import urllib.request
 import zipfile
 import warnings
@@ -506,20 +507,32 @@ def _wait_channel_free(channel: pygame.mixer.Channel, poll: float = 0.01) -> Non
 
 
 def _print_words_synced(text: str, duration: float) -> None:
-    """Print words of *text* spread evenly across *duration* seconds.
+    """Print *text* spread evenly across *duration* seconds, preserving whitespace.
 
-    Runs 5 % faster than the true audio duration so text never lags behind
-    the voice.  Stops immediately if INTERRUPT_EVENT is set.
+    Uses a regex split to keep all original spacing and newlines. Stops
+    immediately if INTERRUPT_EVENT is set.
     """
-    words = text.split()
-    if not words or duration <= 0:
+    if not text or duration <= 0:
         return
+
+    # Split by whitespace but keep the delimiters (the whitespace itself)
+    tokens = [t for t in re.split(r'(\s+)', text) if t]
+    
+    # Calculate delay based on the number of non-whitespace tokens (words)
+    words = [t for t in tokens if not t.isspace()]
+    if not words:
+        print(text, end="", flush=True)
+        return
+        
     delay = (duration / len(words)) * 0.95
-    for word in words:
+    
+    for token in tokens:
         if INTERRUPT_EVENT.is_set():
             break
-        print(word + " ", end="", flush=True)
-        time.sleep(delay)
+        print(token, end="", flush=True)
+        # Only pause after actual words, not between spaces/newlines
+        if not token.isspace():
+            time.sleep(delay)
 
 
 def _safe_delete(path: str) -> None:

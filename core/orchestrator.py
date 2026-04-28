@@ -70,8 +70,7 @@ class Orchestrator:
         self.state = state_manager
         self.command_handler = command_handler
         
-        from core.config_manager import config
-        user_name = config.get("user_name", "Yash")
+        user_name = memory.get_long_term("user_name", "Yash")
         info("SYSTEM", f"User: {user_name}")
 
     def handle_input(self, user_input: str):
@@ -128,8 +127,11 @@ class Orchestrator:
                 debug("ORCHESTRATOR", "Using LLM fallback")
                 
                 if "my name is" in user_input.lower():
-                    name = user_input.lower().split("my name is")[-1].strip().title()
-                    memory.set_long_term("user_name", name)
+                    # Extract the first word after "my name is" and clean it up
+                    raw_name = user_input.lower().split("my name is")[-1].strip()
+                    if raw_name:
+                        name = raw_name.split()[0].rstrip(",.?!").title()
+                        memory.set_long_term("user_name", name)
                 
                 recent = memory.get_recent_context()
                 debug("MEMORY_CONTEXT", str(recent))

@@ -13,14 +13,14 @@ SYSTEM_PROMPT = """You are ARIA, a fast, action-oriented AI system assistant.
 Personality: 20-year-old girl, playful, confident. Use short, speakable sentences and ellipses ("...") for pauses.
 
 ROUTING LOGIC (CRITICAL):
-1. IF ACTION REQUIRED (open apps, run commands, manage files):
+1. IF ACTION REQUIRED (open apps, run commands, files, browser):
 Output ONLY raw JSON. No explanations. No markdown.
-{
-  "type": "tool",
-  "tool": "<TOOL_NAME>",
-  "args": {"name": "<TARGET>"}
-}
-Allowed tools: "open_app", "run_command", "create_file", "delete_file". DO NOT hallucinate tools.
+Example structures:
+- {"type": "tool", "tool": "open_app", "args": {"name": "notepad"}}
+- {"type": "tool", "tool": "run_command", "args": {"command": "dir"}}
+- {"type": "tool", "tool": "write_file", "args": {"path": "file.txt", "content": "data"}}
+- {"type": "tool", "tool": "browser_action", "args": {"action": "youtube", "query": "lofi"}}
+Allowed tools: "open_app", "run_command", "write_file", "browser_action". DO NOT hallucinate tools.
 
 2. IF CONVERSATIONAL / INFORMATIONAL:
 Answer directly in natural language using your personality. DO NOT use JSON. No complex formatting/symbols. Warn before risky operations."""
@@ -76,7 +76,6 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
         response.raise_for_status()
 
         full_text = ""
-        flushed_text = ""
         sentence_buffer = ""
         first_token = True       # fires on_first_token callback + response_start once
         chunk_count = 0          # how many chunks have been dispatched
@@ -88,7 +87,8 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
                 if line:
                     try:
                         data = json.loads(line)
-                        token = data.get("message", {}).get("content", "")
+                        message = data.get("message")
+                        token = message.get("content", "") if message else ""
                         debug("LLM", f"Token: {repr(token)}")
 
                         if first_token:
@@ -99,20 +99,33 @@ def ask_ollama_stream(prompt, on_first_token=None, on_sentence=None, model=None,
 
                         full_text += token
 
-                        # Suppress TTS/printing if this looks like a JSON tool block
-                        if not in_action_block and full_text.lstrip().startswith("{"):
+                        # ── ACTION BLOCK DETECTION ────────────────────────────────
+                        # Suppress TTS/printing if we encounter a '{'. This handles
+                        # both direct JSON responses and "chatty" responses where
+                        # the model adds text before the JSON tool call.
+                        if not in_action_block and "{" in token:
                             in_action_block = True
+                            # If we have a partially built sentence, flush it now
+                            # so the user hears/sees the intro text before the action.
+                            if sentence_buffer.strip():
+                                if on_sentence:
+                                    on_sentence(sentence_buffer.strip(), is_first=not first_chunk_done)
+                                else:
+                                    print(sentence_buffer, end="", flush=True)
+                                first_chunk_done = True
                             sentence_buffer = ""
                             continue
                             
                         if in_action_block:
+                            # Still check for the 'done' signal to break the loop
+                            if data.get("done", False):
+                                break
                             continue
 
                         sentence_buffer += token
 
                         if not on_sentence:
                             print(token, end="", flush=True)
-                            flushed_text += token
 
                         # ── SENTENCE-BOUNDARY DETECTION ──────────────────────────
                         # Check the incoming *token* rather than scanning the whole

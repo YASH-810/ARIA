@@ -4,6 +4,7 @@ import time
 import core.voice as voice
 import core.tts_engine as tts_engine
 from core.state_manager import state_manager
+from core.memory_manager import memory
 from core.pipeline import VoicePipeline
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
@@ -99,8 +100,7 @@ def run_cli():
     )
 
     show_banner()
-    from core.config_manager import config
-    user_name = config.get("user_name", "Yash")
+    user_name = memory.get_long_term("user_name", "Yash")
     greeting = f"Welcome back, {user_name}. All systems online and ready."
     print(f"ARIA > {greeting}")
     tts_engine.speak_chunk(greeting)
