@@ -1,118 +1,145 @@
-# 🤖 ARIA — Portable Local AI Assistant
+# 🤖 ARIA — Advanced Real-time Intelligent Assistant
 
-## 🧠 Overview
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Ollama](https://img.shields.io/badge/Powered%20by-Ollama-orange.svg)](https://ollama.com/)
+[![OS: Windows](https://img.shields.io/badge/OS-Windows-0078D6.svg)](https://www.microsoft.com/windows)
+
+ARIA is a fully **local, privacy-first AI assistant** designed for ultra-low latency interaction. Unlike cloud-based assistants, ARIA runs entirely on your hardware, ensuring zero telemetry and instant response times.
 
 ![ARIA Terminal Interface](assets/aria_terminal.gif)
 
-ARIA is an advanced, fully **local AI assistant** designed to run **offline** with minimal setup. It focuses on ultra-low latency, multi-modal interactions (voice & text), and deep system integrations.
+---
 
-It supports:
-* 💻 PC mode (full features)
-* 🔑 USB mode (portable AI system)
+## 🧠 Core Philosophy
 
-ARIA is built to be:
-* Lightweight and incredibly fast.
-* Fully private (Zero cloud telemetry).
-* Modular and easily extendable.
+ARIA is built to be a **portable AI system**. Whether running from your PC or a USB drive, it provides a consistent, high-performance interface for voice-to-voice and text-to-voice interactions.
+
+*   **100% Local:** No data leaves your machine.
+*   **Modular Architecture:** Easily extendable tool system.
+*   **Hybrid Routing:** Intelligent "Fast Path" for system commands, bypassing the LLM when not needed.
 
 ---
 
-# 🚀 Features
+## 🚀 Key Features
 
-* 💬 **Local AI Chat:** Powered by Ollama streaming the `phi3` model.
-* 🎙️ **Real-time Voice Input:** Uses `faster-whisper` and dynamic RMS silence detection for seamless offline Speech-to-Text.
-* 🔊 **Synchronized Voice Output:** Uses `Piper TTS` to generate ultra-realistic voice models, perfectly synchronized word-by-word with the terminal output.
-* ⚙️ **Command Automation & Tools:** Executes shell commands, browser actions, and file operations natively with strict schema validation.
-* 🧠 **Intelligent App Routing:** Uses the `rapidfuzz` algorithm to intelligently fuzzy-match and launch local system apps instantly, bypassing the LLM for fast-path commands.
-* 🛡️ **Thread-Safe State Manager:** Centralized architecture preventing overlaps between listening, thinking, and speaking.
-* 🗃️ **Persistent Memory:** Context-aware interactions with short-term buffers and long-term user preference storage.
+### 🎙️ Multi-Modal Interaction
+*   **Real-time Voice Input:** Powered by `faster-whisper` with dynamic RMS silence detection.
+*   **Synchronized TTS:** Uses `Piper TTS` for high-quality, ultra-realistic voice models, perfectly synchronized word-by-word with the terminal output.
+
+### ⚙️ Intelligence & Automation
+*   **Intelligent Routing:** Uses `rapidfuzz` to launch local apps and execute system commands instantly.
+*   **Tool Execution:** Native support for browser actions, file operations, and shell commands with strict schema validation.
+*   **State Management:** Thread-safe architecture prevents overlaps between listening, thinking, and speaking.
+
+### 🗃️ Persistent Memory
+*   **Context Awareness:** Short-term interaction buffers and long-term user preference storage.
+*   **Dynamic Personalization:** Remembers your name and preferences across sessions.
 
 ---
 
+## 🛠️ Technology Stack
 
-# 🧠 System Architecture
+| Component | Technology |
+| :--- | :--- |
+| **LLM Engine** | Ollama (Default: `phi3`) |
+| **STT** | `faster-whisper` (Base.en) |
+| **TTS** | `Piper TTS` (en_US-lessac-medium) |
+| **Interface** | `prompt_toolkit` |
+| **Audio** | `pygame` & `pyaudio` |
+| **Fuzzy Matching** | `rapidfuzz` |
 
-```plaintext
-User Input (Text / F2 for Voice)
-          ↓
-CLI (Prompt Toolkit)
-          ↓
-State Manager (Idle / Listening / Thinking / Speaking)
-          ↓
-Router (Fuzzy Matcher)  ←→  System Commands (actions.py)
-          ↓
-Engine (ask_ollama_stream)
-          ↓
-Piper TTS + Terminal Sync
+---
+
+## 🏁 Getting Started
+
+### 1. Prerequisites
+*   **OS:** Windows 10/11 (Required for Piper `.exe` compatibility)
+*   **Python:** 3.10 or higher
+*   **Ollama:** [Download & Install Ollama](https://ollama.com/)
+    *   Run `ollama pull phi3` to download the default model.
+
+### 2. Installation
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/YASH-810/ARIA.git
+    cd ARIA
+    ```
+2.  Create and activate a virtual environment:
+    ```bash
+    python -m venv venv
+    .\venv\Scripts\activate
+    ```
+3.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+### 3. Launch
+Simply run the bootstrapper:
+```bash
+.\start.bat
+```
+*The first run will automatically download the Piper TTS engine and voice models (~50 MB).*
+
+---
+
+## ⌨️ Usage & Commands
+
+### Voice Mode
+Press **`F2`** at any time to trigger voice listening. ARIA will listen until you stop speaking, then transcribe and respond instantly.
+
+### Slash Commands
+| Command | Description |
+| :--- | :--- |
+| `/mute` | Disable voice output |
+| `/unmute` | Enable voice output |
+| `/model <name>` | Switch the active Ollama model |
+| `/context on/off` | Toggle persistent conversation memory |
+| `/debug on/off` | Toggle verbose logging |
+| `/state` | View current system state |
+| `/help` | Show all available commands |
+
+### Fast Path Examples
+ARIA can execute specific intents instantly without calling the LLM:
+*   `open notepad` → Launches Windows Notepad
+*   `search for weather in London` → Opens browser to search
+*   `play lofi on youtube` → Launches YouTube search
+*   `run dir` → Executes shell command
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    User([User Input]) --> CLI[CLI - prompt_toolkit]
+    CLI --> Orchestrator{Orchestrator}
+    
+    Orchestrator -- Fast Path --> Router[Router / Fuzzy Matcher]
+    Router --> Tools[System Tools / Apps]
+    
+    Orchestrator -- Slow Path --> Engine[LLM Engine - Ollama]
+    Engine --> Pipeline[Voice Pipeline]
+    
+    Pipeline --> STT[STT - faster-whisper]
+    Pipeline --> TTS[TTS - Piper]
+    
+    TTS --> Sync[Terminal Sync Output]
+    Sync --> User
 ```
 
 ---
 
-# 📁 Project Structure
-
-```plaintext
-ARIA/
-├── core/
-│   ├── command_handler.py  # Slash-commands parser
-│   ├── config_manager.py   # Global configuration management
-│   ├── engine.py           # LLM processing & streaming
-│   ├── event_manager.py    # Pub/Sub event bus
-│   ├── logger.py           # Centralized logging
-│   ├── memory_manager.py   # Short & Long-term memory
-│   ├── orchestrator.py     # Central brain & intent routing
-│   ├── pipeline.py         # Interaction cycle manager
-│   ├── router.py           # Tool & application execution
-│   ├── state_manager.py    # Thread-safe concurrency control
-│   ├── tools_registry.py   # Available LLM capabilities
-│   ├── tts_engine.py       # Piper TTS & pygame audio player
-│   ├── validator.py        # Tool argument validation
-│   └── voice.py            # Faster-Whisper & pyaudio STT
-├── commands/
-│   ├── actions.py          # OS level execution
-│   └── system.py           # Fallback system commands
-├── config/
-│   └── config.json         # Settings & toggles
-├── data/
-│   └── memory.json         # Persistent user data
-├── ui/
-│   └── cli.py              # prompt_toolkit interface
-├── main.py                 # Application entry point
-├── requirements.txt        # Python dependencies
-└── run.bat                 # Bootstrapper
-```
+## 🔮 Roadmap
+- [ ] **Vision Support:** Screen interaction via OCR & CV.
+- [ ] **Wake Word:** Always-on listening for "Hey ARIA".
+- [ ] **Dashboard:** Electron-based React UI for visual status tracking.
+- [ ] **Custom Tools:** Easy-to-use API for adding third-party integrations.
 
 ---
 
-# ⚙️ Configuration
+## 🛡️ Privacy & Safety
+ARIA is built on the principle of **Local First**. All audio processing, transcriptions, and LLM inferences happen on your local machine. No voice data or chat history is ever uploaded to external servers.
 
-```json
-{
-  "user_name": "User",
-  "model": "phi3",
-  "tts_enabled": true,
-  "debug": true
-}
-```
 
----
 
-# ⚠️ Important Notes
-
-* ARIA uses local models → performance depends on hardware
-* Small models recommended for low-end systems
-* Ensure all dependencies in `requirements.txt` are installed.
-
----
-
-# 🔮 Future Features
-
-* Screen interaction (OCR & Computer Vision)
-* Always-on wake word ("Hey ARIA")
-* React UI dashboard
-
----
-
-# 🧠 Summary
-
-ARIA is a **portable AI assistant**, a **developer tool**, and a **local-first system**.
-Run anywhere. No cloud required.
