@@ -134,15 +134,12 @@ def run_cli():
             info("INPUT", user_input)
 
             # ── All other input: route through Orchestrator ───────────────────
-            # Start the spinner before handing off; the pipeline's on_first_token
-            # callback (_stop_loader) will dismiss it when the LLM responds.
-            # Only start spinner for plain-text input (not commands, not /voice —
-            # /voice triggers its own spinner via _on_transcript).
-            if not user_input.startswith("/"):
-                _start_loader()
-
+            # Only start the spinner for the slow (LLM) path; fast path and
+            # commands return immediately and don't need it.
             try:
-                orchestrator.handle_input(user_input)
+                path = orchestrator.handle_input(user_input)
+                if path != "fast":
+                    _start_loader()
             except Exception as e:
                 error("CRASH", str(e))
             finally:
@@ -152,6 +149,7 @@ def run_cli():
 
         except KeyboardInterrupt:
             tts_engine.stop_speaking()
+            pipeline.abort()
             _stop_loader_event.set()        # kill spinner if running
             print("\n[Interrupted] You can type your next message.")
             continue

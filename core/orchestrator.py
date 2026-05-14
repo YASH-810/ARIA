@@ -48,7 +48,7 @@ def detect_fast_intent(user_input: str):
             }
         }
         
-    if text.startswith("play ") and text.endswith(" on youtube"):
+    if text.startswith("play ") and text.endswith(" on youtube" or " on yt"):
         query = text[len("play "): -len(" on youtube")].strip()
         return {
             "type": "tool",
@@ -88,7 +88,7 @@ class Orchestrator:
                     if not text.strip():
                         self.state.set_state("idle")
                         info("TIME", f"{time.time() - start:.2f}s")
-                        return
+                        return "fast"
                     
                     self.engine.handle_interrupt()
                     from core.event_manager import events
@@ -102,7 +102,7 @@ class Orchestrator:
                     self.command_handler.handle(user_input)
                     self.state.set_state("idle")
                     info("TIME", f"{time.time() - start:.2f}s")
-                    return
+                    return "fast"
             else:
                 # FAST PATH (NO LLM)
                 fast_decision = detect_fast_intent(user_input)
@@ -120,7 +120,7 @@ class Orchestrator:
                     print("ARIA >", result)
                     self.state.set_state("idle")
                     info("TIME", f"{time.time() - start:.2f}s")
-                    return
+                    return "fast"
 
                 # SLOW PATH (LLM)
                 debug("LLM_FALLBACK", "Triggered")
@@ -146,6 +146,7 @@ class Orchestrator:
                 
                 response = self.engine.process(text=user_input, context=messages)
                 self._handle_llm_response(response, user_input)
+                return "slow"
 
         except Exception as e:
             error("SYSTEM", str(e))

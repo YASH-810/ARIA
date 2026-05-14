@@ -17,6 +17,8 @@ class CommandHandler:
 
         elif cmd == "unmute":
             config.set("tts_enabled", True)
+            import core.tts_engine as tts_engine
+            tts_engine.reset_interrupt()
             print("ARIA > Voice enabled")
 
         elif cmd == "model":

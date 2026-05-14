@@ -77,6 +77,7 @@ class VoicePipeline:
 
         self._running = False
         self._stop_event = threading.Event()
+        self._abort_event = threading.Event()
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -120,11 +121,28 @@ class VoicePipeline:
         clean_text = full_text.strip()
         
         def extract_json(text):
-            start = text.find("{")
-            end = text.rfind("}")
+            import re
+            # Only match JSON that starts at the beginning of the text (or after
+            # minimal whitespace), not trailing hallucinated JSON at the end
+            text = text.strip()
 
-            if start != -1 and end != -1:
-                return text[start:end+1]
+            # If text starts with { it's intentionally a tool call
+            if text.startswith('{'):
+                end = text.rfind("}")
+                if end != -1:
+                    return text[:end+1]
+
+            # If { appears only at the end (after 50+ chars of text), it's
+            # a hallucinated trailing tool call - ignore it
+            first_brace = text.find("{")
+            if first_brace > 50:
+                return None
+
+            # Middle case: short prefix before JSON is okay
+            if first_brace != -1:
+                end = text.rfind("}")
+                if end > first_brace:
+                    return text[first_brace:end+1]
 
             return None
             
@@ -218,6 +236,11 @@ class VoicePipeline:
         self._stop_event.set()
         self._running = False
 
+    def abort(self) -> None:
+        """Immediately stop TTS and unblock any in-progress _wait_for_speech()."""
+        self._abort_event.set()
+        tts_engine.stop_speaking()
+
     # ── Internal helpers ───────────────────────────────────────────────────────
 
     def _stream_response(self, text: str, context: list = None) -> str:
@@ -250,9 +273,10 @@ class VoicePipeline:
         )
 
     def _wait_for_speech(self) -> None:
-        """Block until the TTS queue is drained or a stop is requested."""
+        """Block until the TTS queue is drained or a stop/abort is requested."""
+        self._abort_event.clear()
         while tts_engine.is_speaking():
-            if self._stop_event.is_set():
+            if self._stop_event.is_set() or self._abort_event.is_set():
                 tts_engine.stop_speaking()
                 break
             time.sleep(0.05)

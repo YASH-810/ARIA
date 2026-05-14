@@ -34,19 +34,29 @@ class MemoryManager:
             json.dump(self.memory, f, indent=4)
 
     # SHORT TERM MEMORY
-    def add_interaction(self, user, ai):
+    def add_interaction(self, user: str, ai: str):
+        # Do not save empty or JSON-looking AI responses into memory
+        ai = ai.strip()
+        if not ai:
+            return
+        if ai.startswith('"type"') or ai.startswith('{"type"'):
+            return
+        if len(ai) < 5:
+            return
+
         self.memory["short_term"].append({
-            "user": user,
-            "ai": ai
+            "user": user[:120],
+            "ai": ai[:150]
         })
-
-        # keep only last 5
-        self.memory["short_term"] = self.memory["short_term"][-5:]
-
+        self.memory["short_term"] = self.memory["short_term"][-2:]
         self.save()
 
     def get_recent_context(self):
-        return self.memory["short_term"]
+        recent = self.memory["short_term"][-2:]
+        return [
+            {"user": item["user"][:120], "ai": item["ai"][:150]}
+            for item in recent
+        ]
 
     # LONG TERM MEMORY
     def set_long_term(self, key, value):
