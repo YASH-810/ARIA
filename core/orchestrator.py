@@ -70,7 +70,12 @@ class Orchestrator:
         self.state = state_manager
         self.command_handler = command_handler
         
-        user_name = memory.get_long_term("user_name", "Yash")
+        
+        user_name = memory.get_long_term("user_name", "").strip()
+        if not user_name:
+            user_name = input("What's your name? \n").strip()
+            if user_name:
+                memory.set_long_term("user_name", user_name)
         info("SYSTEM", f"User: {user_name}")
 
     def handle_input(self, user_input: str):

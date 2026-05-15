@@ -21,7 +21,7 @@ class MemoryManager:
         default = {
             "short_term": [],
             "long_term": {
-                "user_name": "Yash",
+                "user_name": "",
                 "preferences": {}
             }
         }
